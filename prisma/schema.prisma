@@ -115,6 +115,7 @@ model Attachment {
   mimeType   String
   size       Int
   storageKey String
+  bytes      Bytes?
   createdAt  DateTime @default(now())
 
   @@index([userId])

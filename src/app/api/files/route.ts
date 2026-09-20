@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { getRequiredAdmin } from "@/lib/auth-user";
 import {
+  createAttachmentRecord,
   fileUrl,
   inferMimeType,
   isAllowedFile,
   MAX_FILE_SIZE,
-  saveUpload,
 } from "@/lib/files";
-import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   const session = await getRequiredAdmin();
@@ -31,23 +30,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Type de fichier non autorisé." }, { status: 400 });
   }
 
-  const attachment = await prisma.attachment.create({
-    data: {
-      userId: session.user.id,
-      name: file.name,
-      mimeType,
-      size: file.size,
-      storageKey: crypto.randomUUID(),
-    },
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const { attachment, storedInDb } = await createAttachmentRecord({
+    userId: session.user.id,
+    name: file.name,
+    mimeType,
+    size: file.size,
+    bytes,
   });
-
-  await saveUpload(attachment.storageKey, Buffer.from(await file.arrayBuffer()));
 
   return NextResponse.json({
     id: attachment.id,
     name: attachment.name,
     mediaType: attachment.mimeType,
-    url: fileUrl(attachment.id),
+    url: storedInDb
+      ? fileUrl(attachment.id)
+      : `data:${mimeType};base64,${bytes.toString("base64")}`,
     size: attachment.size,
   });
 }

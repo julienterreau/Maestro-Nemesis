@@ -87,6 +87,23 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+export const speechSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "Texte requis")
+    .max(4000, "Texte trop long pour la voix (4000 caractères)."),
+});
+
+export const musicSchema = z.object({
+  prompt: z
+    .string()
+    .trim()
+    .min(3, "Décris le morceau")
+    .max(2000, "Prompt trop long"),
+  lyrics: z.string().trim().max(4000).optional(),
+});
+
 export function firstZodMessage(error: z.ZodError) {
   return error.issues[0]?.message ?? "Données invalides";
 }

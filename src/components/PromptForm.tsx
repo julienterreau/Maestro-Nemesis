@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpIcon, PaperclipIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, MusicIcon, PaperclipIcon, SquareIcon } from "lucide-react";
 import * as React from "react";
 import { AttachmentCard, AttachmentCardRow } from "@/components/AttachmentCard";
 import { ModelPicker } from "@/components/ModelPicker";
@@ -27,6 +27,7 @@ type PromptFormProps = {
   isBusy: boolean;
   disabled?: boolean;
   onSubmit: (text: string, files: File[]) => void;
+  onGenerateMusic?: (prompt: string) => void;
   onStop: () => void;
   models?: CatalogModel[];
   plugins: RouterPlugins;
@@ -53,6 +54,7 @@ export function PromptForm({
   isBusy,
   disabled,
   onSubmit,
+  onGenerateMusic,
   onStop,
   models = FEATURED_MODELS,
   plugins,
@@ -184,6 +186,24 @@ export function PromptForm({
               disabled={disabled || isBusy}
               onChange={onPluginChange}
             />
+            {onGenerateMusic ? (
+              <InputGroupButton
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={disabled || isBusy || !input.trim()}
+                onClick={() => {
+                  const prompt = input.trim();
+                  if (!prompt) return;
+                  onGenerateMusic(prompt);
+                  setInput("");
+                }}
+                aria-label="Créer une musique"
+                title="Créer une musique"
+              >
+                <MusicIcon />
+              </InputGroupButton>
+            ) : null}
           </div>
           {isBusy ? (
             <InputGroupButton

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRequiredAdmin } from "@/lib/auth-user";
-import { readUpload } from "@/lib/files";
+import { loadAttachmentBytes } from "@/lib/files";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -21,7 +21,7 @@ export async function GET(
     return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
   }
 
-  const bytes = await readUpload(attachment.storageKey);
+  const bytes = await loadAttachmentBytes(attachment);
   return new NextResponse(bytes, {
     headers: {
       "Content-Type": attachment.mimeType,

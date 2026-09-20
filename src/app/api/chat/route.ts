@@ -7,7 +7,7 @@ import {
   type UIMessage,
 } from "ai";
 import { getRequiredAdmin } from "@/lib/auth-user";
-import { readUpload } from "@/lib/files";
+import { attachmentIdFromUrl, loadAttachmentBytes } from "@/lib/files";
 import { resolveModelForMessages } from "@/lib/models";
 import { getOpenRouterCatalog } from "@/lib/openrouter-catalog";
 import { getOpenRouter } from "@/lib/openrouter";
@@ -39,21 +39,24 @@ async function hydrateFileParts(messages: UIMessage[]) {
         message.parts.map(async (part) => {
           if (part.type !== "file") return part;
           const filePart = part as FileUIPart;
-          if (!filePart.url.startsWith("/api/files/")) return filePart;
+          const id = attachmentIdFromUrl(filePart.url);
+          if (!id) return filePart;
           const canHydrate =
             /^(image|audio|video)\//.test(filePart.mediaType) ||
             filePart.mediaType === "application/pdf";
           if (!canHydrate) return filePart;
 
-          const id = filePart.url.split("/").pop();
-          if (!id) return filePart;
           const attachment = await prisma.attachment.findUnique({ where: { id } });
           if (!attachment) return filePart;
-          const bytes = await readUpload(attachment.storageKey);
-          return {
-            ...filePart,
-            url: `data:${attachment.mimeType};base64,${bytes.toString("base64")}`,
-          };
+          try {
+            const bytes = await loadAttachmentBytes(attachment);
+            return {
+              ...filePart,
+              url: `data:${attachment.mimeType};base64,${bytes.toString("base64")}`,
+            };
+          } catch {
+            return filePart;
+          }
         }),
       ),
     })),
@@ -122,6 +125,9 @@ function publicChatError(error: unknown) {
   }
   if (/pdf|document/i.test(message) && /support|input|file/i.test(message)) {
     return "Ce modèle ne lit pas les PDF. Passez sur Gemini, Claude ou GPT-4o.";
+  }
+  if (/DEPLOYMENT_NOT_FOUND|deployment could not be found/i.test(message)) {
+    return "Le fichier n’est plus accessible depuis ce déploiement Vercel. Renvoie l’image.";
   }
   return message || "Impossible d’obtenir une réponse OpenRouter.";
 }

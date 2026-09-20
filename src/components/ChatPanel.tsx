@@ -32,12 +32,13 @@ import {
 } from "@/lib/models";
 import type { RouterPlugins } from "@/lib/openrouter-plugins";
 import type { Conversation } from "@/lib/types";
+import { readApiJson } from "@/lib/api-json";
 import { getMessageText } from "@/lib/types";
 import { toast } from "sonner";
 
 const SUGGESTIONS = [
-  "Explique-moi un concept comme si j’avais 12 ans.",
-  "Aide-moi à structurer un projet Next.js.",
+  "Écris des paroles de chanson sur la pluie à Paris.",
+  "Compose un morceau électro nostalgique, 30 secondes.",
   "Quelle est la signification de la vie ?",
 ];
 
@@ -85,7 +86,7 @@ export function ChatPanel({
   plugins: RouterPlugins;
   onPluginChange: (key: keyof RouterPlugins, value: boolean) => void;
 }) {
-  const { messages, sendMessage, status, stop, error } = useChat({
+  const { messages, sendMessage, setMessages, status, stop, error } = useChat({
     id: conversation.id,
     messages: conversation.messages,
   });
@@ -127,6 +128,70 @@ export function ChatPanel({
     void sendMessage({ parts }, { body: { model, plugins } });
   }
 
+  function attachAudio(messageId: string, file: FileUIPart) {
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === messageId
+          ? { ...item, parts: [...item.parts, file] }
+          : item,
+      ),
+    );
+  }
+
+  async function generateMusic(prompt: string) {
+    const userId = crypto.randomUUID();
+    setMessages((current) => [
+      ...current,
+      {
+        id: userId,
+        role: "user",
+        parts: [{ type: "text", text: `Crée une musique : ${prompt}` }],
+      },
+    ]);
+    toast.info("Composition en cours…");
+    try {
+      const response = await fetch("/api/audio/music", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await readApiJson<{
+        error?: string;
+        url?: string;
+        name?: string;
+        mediaType?: string;
+        title?: string;
+      }>(response);
+      if (!response.ok || !data.url || !data.mediaType) {
+        throw new Error(data.error ?? "Musique impossible");
+      }
+      const audioPart: FileUIPart = {
+        type: "file",
+        filename: data.name ?? "musique.wav",
+        mediaType: data.mediaType,
+        url: data.url,
+      };
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: "Morceau généré. Tu peux l’écouter ci-dessous.",
+            },
+            audioPart,
+          ],
+        },
+      ]);
+    } catch (musicError) {
+      toast.error(
+        musicError instanceof Error ? musicError.message : "Musique impossible",
+      );
+    }
+  }
+
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
@@ -138,8 +203,8 @@ export function ChatPanel({
                 <EmptyHeader className="items-center text-center">
                   <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
                   <EmptyDescription className="text-pretty">
-                    Venice pour le texte. Image, audio, vidéo ou PDF : bascule
-                    automatique sur Gemini, qui sait les lire.
+                    Venice pour le texte. Écoute une réponse, ou crée une
+                    musique avec l’icône note. Image / audio / PDF : Gemini.
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent className="items-center gap-2">
@@ -150,7 +215,11 @@ export function ChatPanel({
                       variant="outline"
                       className="h-auto w-full justify-center whitespace-normal px-3 py-2.5 text-center text-sm font-normal text-pretty"
                       disabled={configured === false}
-                      onClick={() => submitPrompt(suggestion)}
+                      onClick={() =>
+                        suggestion.startsWith("Compose")
+                          ? void generateMusic(suggestion)
+                          : submitPrompt(suggestion)
+                      }
                     >
                       {suggestion}
                     </Button>
@@ -175,6 +244,7 @@ export function ChatPanel({
                           message.role === "assistant" &&
                           index === messages.length - 1
                         }
+                        onAttachAudio={attachAudio}
                       />
                     </MessageScrollerItem>
                   ))}
@@ -205,6 +275,7 @@ export function ChatPanel({
           isBusy={isBusy}
           disabled={configured === false}
           onSubmit={submitPrompt}
+          onGenerateMusic={(prompt) => void generateMusic(prompt)}
           onStop={() => stop()}
           models={models}
           plugins={plugins}
