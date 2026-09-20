@@ -1,3 +1,6 @@
+"use client";
+
+import { PlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Conversation } from "@/lib/types";
 
@@ -31,28 +34,44 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <>
-      <div
-        className={`fixed inset-0 z-20 bg-black/50 md:hidden ${open ? "block" : "hidden"}`}
+      <button
+        type="button"
+        aria-label="Fermer le menu"
+        className={`fixed inset-0 z-40 bg-black/50 md:hidden ${open ? "block" : "hidden"}`}
         onClick={onClose}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-70 flex-col border-r bg-sidebar p-4 transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(20rem,88vw)] flex-col border-r bg-sidebar pt-[env(safe-area-inset-top)] transition-transform duration-200 md:static md:z-0 md:w-72 md:translate-x-0 md:pt-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <p className="font-mono text-[11px] tracking-[0.22em] text-muted-foreground uppercase">
+        <div className="flex items-start justify-between gap-3 p-4 pb-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
               Julien Terreau
             </p>
             <h1 className="text-lg font-semibold tracking-tight">Powerfull Rokia AI</h1>
           </div>
-          <Button size="sm" onClick={onCreate}>
-            Nouveau
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="md:hidden"
+            onClick={onClose}
+            aria-label="Fermer"
+          >
+            <XIcon />
           </Button>
         </div>
 
-        <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+        <div className="px-4 pb-3">
+          <Button className="w-full" onClick={onCreate}>
+            <PlusIcon />
+            Nouvelle conversation
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
           {conversations.length === 0 ? (
             <p className="px-2 text-sm text-muted-foreground">
               Aucune conversation pour le moment.
@@ -64,16 +83,16 @@ export function Sidebar({
               return (
                 <div
                   key={conversation.id}
-                  className={`group flex items-start gap-2 rounded-2xl border px-3 py-3 ${
+                  className={`flex items-start gap-1 rounded-2xl border px-2 py-2 ${
                     active
                       ? "border-border bg-sidebar-accent"
-                      : "border-transparent hover:border-border"
+                      : "border-transparent"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => onSelect(conversation.id)}
-                    className="min-w-0 flex-1 text-left"
+                    className="min-w-0 flex-1 px-1 py-1 text-left"
                   >
                     <p className="truncate text-sm font-medium">
                       {conversation.title}
@@ -85,7 +104,7 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => onDelete(conversation.id)}
-                    className="rounded-lg px-2 py-1 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-destructive"
+                    className="mt-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-destructive"
                     aria-label="Supprimer la conversation"
                   >
                     ✕

@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useRef } from "react";
-import type { UIMessage } from "ai";
+import type { FileUIPart, UIMessage } from "ai";
 import { ChatMessage } from "@/components/ChatMessage";
 import { PromptForm } from "@/components/PromptForm";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -22,9 +22,18 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
-import { VENICE_MODEL } from "@/lib/models";
+import {
+  FEATURED_MODELS,
+  MEDIA_MODEL,
+  collectMediaKinds,
+  mediaSwitchLabel,
+  modelSupportsMedia,
+  type CatalogModel,
+} from "@/lib/models";
+import type { RouterPlugins } from "@/lib/openrouter-plugins";
 import type { Conversation } from "@/lib/types";
 import { getMessageText } from "@/lib/types";
+import { toast } from "sonner";
 
 const SUGGESTIONS = [
   "Explique-moi un concept comme si j’avais 12 ans.",
@@ -32,18 +41,49 @@ const SUGGESTIONS = [
   "Quelle est la signification de la vie ?",
 ];
 
+async function uploadFiles(files: File[]) {
+  const uploaded: FileUIPart[] = [];
+
+  for (const file of files) {
+    const body = new FormData();
+    body.set("file", file);
+    const response = await fetch("/api/files", { method: "POST", body });
+    const data = (await response.json()) as {
+      error?: string;
+      name?: string;
+      mediaType?: string;
+      url?: string;
+    };
+    if (!response.ok || !data.url || !data.mediaType) {
+      throw new Error(data.error ?? "Upload impossible");
+    }
+    uploaded.push({
+      type: "file",
+      filename: data.name ?? file.name,
+      mediaType: data.mediaType,
+      url: data.url,
+    });
+  }
+
+  return uploaded;
+}
+
 export function ChatPanel({
   conversation,
   configured,
-  onMenu,
   onModelChange,
   onMessagesChange,
+  models = FEATURED_MODELS,
+  plugins,
+  onPluginChange,
 }: {
   conversation: Conversation;
   configured: boolean | null;
-  onMenu: () => void;
   onModelChange: (model: string) => void;
   onMessagesChange: (messages: UIMessage[]) => void;
+  models?: CatalogModel[];
+  plugins: RouterPlugins;
+  onPluginChange: (key: keyof RouterPlugins, value: boolean) => void;
 }) {
   const { messages, sendMessage, status, stop, error } = useChat({
     id: conversation.id,
@@ -59,46 +99,56 @@ export function ChatPanel({
     onMessagesChange(messages);
   }, [messages, onMessagesChange]);
 
-  function submitPrompt(text: string) {
-    void sendMessage({ text }, { body: { model: conversation.model } });
+  async function submitPrompt(text: string, files: File[] = []) {
+    const uploaded = files.length > 0 ? await uploadFiles(files) : [];
+    const parts: UIMessage["parts"] = [];
+    if (text.trim()) {
+      parts.push({ type: "text", text });
+    } else if (uploaded.length > 0) {
+      parts.push({
+        type: "text",
+        text: `Fichier(s) : ${uploaded.map((file) => file.filename).join(", ")}`,
+      });
+    }
+
+    parts.push(...uploaded);
+
+    const nextMessages = [...messages, { role: "user" as const, parts }];
+    const kinds = collectMediaKinds(nextMessages);
+    let model = conversation.model;
+    if (kinds.some((kind) => !modelSupportsMedia(model, kind, models))) {
+      model = MEDIA_MODEL;
+      onModelChange(model);
+      toast.info(
+        `Ce modèle ne lit pas ${mediaSwitchLabel(kinds)}. Passage sur Gemini 2.5 Flash.`,
+      );
+    }
+
+    void sendMessage({ parts }, { body: { model, plugins } });
   }
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <Button variant="outline" className="md:hidden" onClick={onMenu}>
-          Menu
-        </Button>
-        <p className="hidden text-sm text-muted-foreground sm:block">
-          {configured === false
-            ? "Clé API manquante"
-            : configured
-              ? conversation.model === VENICE_MODEL
-                ? "Venice · 0 rétention"
-                : "OpenRouter · ZDR"
-              : "Vérification…"}
-        </p>
-      </header>
-
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1">
       <MessageScrollerProvider autoScroll>
         <MessageScroller>
           {messages.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center px-4">
-              <Empty className="border-none">
-                <EmptyHeader>
-                  <EmptyTitle>Votre cloud IA, en local.</EmptyTitle>
-                  <EmptyDescription>
-                    Venice Uncensored par défaut, avec Zero Data Retention.
-                    Les autres modèles restent filtrés sur des endpoints ZDR.
+            <div className="flex flex-1 items-center justify-center px-4 py-6">
+              <Empty className="items-start border-none p-0 text-left sm:p-8">
+                <EmptyHeader className="max-w-md items-start px-1 text-left">
+                  <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
+                  <EmptyDescription className="text-pretty">
+                    Venice pour le texte. Image, audio, vidéo ou PDF : bascule
+                    automatique sur Gemini, qui sait les lire.
                   </EmptyDescription>
                 </EmptyHeader>
-                <EmptyContent>
+                <EmptyContent className="items-start gap-2">
                   {SUGGESTIONS.map((suggestion) => (
                     <Button
                       key={suggestion}
                       type="button"
                       variant="outline"
-                      className="w-full justify-start text-left"
+                      className="h-auto w-full justify-start whitespace-normal px-3 py-2.5 text-left text-sm font-normal text-pretty"
                       disabled={configured === false}
                       onClick={() => submitPrompt(suggestion)}
                     >
@@ -140,8 +190,9 @@ export function ChatPanel({
           )}
         </MessageScroller>
       </MessageScrollerProvider>
+      </div>
 
-      <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-5">
+      <div className="mx-auto w-full max-w-3xl space-y-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
         {error ? (
           <Alert variant="destructive">
             <AlertTitle>Échec de la requête</AlertTitle>
@@ -155,6 +206,9 @@ export function ChatPanel({
           disabled={configured === false}
           onSubmit={submitPrompt}
           onStop={() => stop()}
+          models={models}
+          plugins={plugins}
+          onPluginChange={onPluginChange}
         />
       </div>
     </main>

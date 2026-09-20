@@ -1,0 +1,102 @@
+import {
+  FEATURED_MODELS,
+  type CatalogModel,
+  capabilitiesFromModalities,
+} from "@/lib/models";
+
+type OpenRouterModel = {
+  id?: string;
+  name?: string;
+  architecture?: {
+    input_modalities?: string[];
+    output_modalities?: string[];
+    modality?: string;
+  };
+};
+
+type Cache = {
+  models: CatalogModel[];
+  fetchedAt: number;
+};
+
+const CACHE_MS = 30 * 60 * 1000;
+let cache: Cache | null = null;
+
+function providerFromId(id: string) {
+  const [provider] = id.split("/");
+  if (!provider) return "OpenRouter";
+  return provider
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function nameFromId(id: string, rawName?: string) {
+  if (rawName?.trim()) {
+    return rawName.replace(/^[^:]+:\s*/, "").trim();
+  }
+  return id.split("/")[1] ?? id;
+}
+
+function toCatalogModel(item: OpenRouterModel): CatalogModel | null {
+  if (!item.id) return null;
+  const outputs = item.architecture?.output_modalities ?? [];
+  const modality = item.architecture?.modality ?? "";
+  const isTextOut =
+    outputs.includes("text") ||
+    outputs.length === 0 ||
+    modality.includes("->text");
+  if (!isTextOut) return null;
+
+  return {
+    id: item.id,
+    name: nameFromId(item.id, item.name),
+    provider: providerFromId(item.id),
+    ...capabilitiesFromModalities(item.architecture?.input_modalities ?? []),
+  };
+}
+
+export async function getOpenRouterCatalog(): Promise<CatalogModel[]> {
+  if (cache && Date.now() - cache.fetchedAt < CACHE_MS) {
+    return cache.models;
+  }
+
+  const headers: HeadersInit = {};
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/models", {
+      headers,
+      next: { revalidate: 1800 },
+    });
+    if (!response.ok) {
+      throw new Error(`OpenRouter models ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { data?: OpenRouterModel[] };
+    const remote = (payload.data ?? [])
+      .map(toCatalogModel)
+      .filter((model): model is CatalogModel => model !== null);
+
+    const byId = new Map<string, CatalogModel>();
+    for (const model of FEATURED_MODELS) byId.set(model.id, model);
+    for (const model of remote) {
+      if (!byId.has(model.id)) byId.set(model.id, model);
+    }
+
+    const models = [...byId.values()].sort((a, b) => {
+      const featuredA = FEATURED_MODELS.some((item) => item.id === a.id);
+      const featuredB = FEATURED_MODELS.some((item) => item.id === b.id);
+      if (featuredA !== featuredB) return featuredA ? -1 : 1;
+      return a.name.localeCompare(b.name, "fr");
+    });
+
+    cache = { models, fetchedAt: Date.now() };
+    return models;
+  } catch {
+    return FEATURED_MODELS;
+  }
+}
