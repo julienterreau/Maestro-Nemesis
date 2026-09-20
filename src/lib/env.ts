@@ -2,6 +2,19 @@ import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 import { adminEmailSchema, adminPasswordSchema } from "@/lib/validations";
 
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL =
+    process.env.POSTGRES_PRISMA_URL ?? process.env.POSTGRES_URL;
+}
+
+if (!process.env.BETTER_AUTH_URL && process.env.VERCEL_URL) {
+  process.env.BETTER_AUTH_URL = `https://${process.env.VERCEL_URL}`;
+}
+
+if (!process.env.NEXT_PUBLIC_APP_URL && process.env.VERCEL_URL) {
+  process.env.NEXT_PUBLIC_APP_URL = `https://${process.env.VERCEL_URL}`;
+}
+
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
