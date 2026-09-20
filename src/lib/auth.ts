@@ -7,6 +7,11 @@ import EmailChangeConfirmation from "@/emails/EmailChangeConfirmation";
 import PasswordChanged from "@/emails/PasswordChanged";
 import ResetPassword from "@/emails/ResetPassword";
 import type { z } from "zod";
+import {
+  getAllowedAuthHosts,
+  getAuthFallbackUrl,
+  getTrustedOrigins,
+} from "@/lib/auth-url";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/mail/send-email";
 import { prisma } from "@/lib/prisma";
@@ -27,15 +32,23 @@ function parseOrThrow<T extends z.ZodType>(schema: T, data: unknown): z.infer<T>
   return parsed.data;
 }
 
-const appUrl = env.BETTER_AUTH_URL ?? env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const fallbackUrl = getAuthFallbackUrl();
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
   secret: env.BETTER_AUTH_SECRET,
-  baseURL: appUrl,
-  trustedOrigins: [appUrl],
+  baseURL: {
+    allowedHosts: getAllowedAuthHosts(),
+    fallback: fallbackUrl,
+    protocol: process.env.VERCEL ? "https" : "auto",
+  },
+  trustedOrigins: getTrustedOrigins(),
+  advanced: {
+    trustedProxyHeaders: true,
+    useSecureCookies: Boolean(process.env.VERCEL) || env.NODE_ENV === "production",
+  },
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,

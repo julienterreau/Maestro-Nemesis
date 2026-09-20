@@ -41,7 +41,12 @@ export function LoginForm() {
     });
 
     if (result.error) {
-      toast.error(result.error.message ?? "Connexion impossible");
+      const message = result.error.message ?? "Connexion impossible";
+      toast.error(
+        /invalid email or password/i.test(message)
+          ? "E-mail ou mot de passe incorrect. Utilise ADMIN_EMAIL et ADMIN_PASSWORD de Vercel, pas le mot de passe Google."
+          : message,
+      );
       return;
     }
 

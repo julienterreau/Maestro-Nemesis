@@ -7,12 +7,28 @@ if (!process.env.DATABASE_URL) {
     process.env.POSTGRES_PRISMA_URL ?? process.env.POSTGRES_URL;
 }
 
-if (!process.env.BETTER_AUTH_URL && process.env.VERCEL_URL) {
-  process.env.BETTER_AUTH_URL = `https://${process.env.VERCEL_URL}`;
+function isLocalAppUrl(value?: string) {
+  if (!value) return true;
+  try {
+    const { hostname } = new URL(value);
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return true;
+  }
 }
 
-if (!process.env.NEXT_PUBLIC_APP_URL && process.env.VERCEL_URL) {
-  process.env.NEXT_PUBLIC_APP_URL = `https://${process.env.VERCEL_URL}`;
+if (process.env.VERCEL) {
+  const vercelHost =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  if (vercelHost) {
+    const publicUrl = `https://${vercelHost.replace(/^https?:\/\//, "")}`;
+    if (isLocalAppUrl(process.env.BETTER_AUTH_URL)) {
+      process.env.BETTER_AUTH_URL = publicUrl;
+    }
+    if (isLocalAppUrl(process.env.NEXT_PUBLIC_APP_URL)) {
+      process.env.NEXT_PUBLIC_APP_URL = publicUrl;
+    }
+  }
 }
 
 export const env = createEnv({
