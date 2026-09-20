@@ -133,22 +133,22 @@ export function ChatPanel({
       <MessageScrollerProvider autoScroll>
         <MessageScroller>
           {messages.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center px-4 py-6">
-              <Empty className="items-start border-none p-0 text-left sm:p-8">
-                <EmptyHeader className="max-w-md items-start px-1 text-left">
+            <div className="flex h-full w-full flex-1 items-center justify-center px-4 py-6">
+              <Empty className="max-w-lg border-none p-0 text-center sm:p-8">
+                <EmptyHeader className="items-center text-center">
                   <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
                   <EmptyDescription className="text-pretty">
                     Venice pour le texte. Image, audio, vidéo ou PDF : bascule
                     automatique sur Gemini, qui sait les lire.
                   </EmptyDescription>
                 </EmptyHeader>
-                <EmptyContent className="items-start gap-2">
+                <EmptyContent className="items-center gap-2">
                   {SUGGESTIONS.map((suggestion) => (
                     <Button
                       key={suggestion}
                       type="button"
                       variant="outline"
-                      className="h-auto w-full justify-start whitespace-normal px-3 py-2.5 text-left text-sm font-normal text-pretty"
+                      className="h-auto w-full justify-center whitespace-normal px-3 py-2.5 text-center text-sm font-normal text-pretty"
                       disabled={configured === false}
                       onClick={() => submitPrompt(suggestion)}
                     >
