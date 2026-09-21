@@ -112,6 +112,7 @@ export async function POST(request: Request) {
         ? image.mimeType
         : "image/png";
       const ext = mimeType.includes("jpeg") ? "jpg" : "png";
+      const preview = `data:${mimeType};base64,${image.bytes.toString("base64")}`;
       const { attachment, storedInDb } = await createAttachmentRecord({
         userId: session.user.id,
         name: `image-${Date.now()}.${ext}`,
@@ -124,9 +125,8 @@ export async function POST(request: Request) {
         id: attachment.id,
         name: attachment.name,
         mediaType: attachment.mimeType,
-        url: storedInDb
-          ? fileUrl(attachment.id)
-          : `data:${mimeType};base64,${image.bytes.toString("base64")}`,
+        preview,
+        url: storedInDb ? fileUrl(attachment.id) : preview,
         size: attachment.size,
       });
     }

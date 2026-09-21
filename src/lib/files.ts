@@ -54,14 +54,18 @@ export async function readUpload(storageKey: string) {
   return readFile(path.join(UPLOAD_DIR, storageKey));
 }
 
-export function loadAttachmentBytes(attachment: {
+export async function loadAttachmentBytes(attachment: {
   storageKey: string;
   bytes?: Uint8Array | null;
 }) {
-  if (attachment.bytes && attachment.bytes.length > 0) {
-    return Promise.resolve(Buffer.from(attachment.bytes));
+  try {
+    return await readUpload(attachment.storageKey);
+  } catch {
+    if (attachment.bytes && attachment.bytes.length > 0) {
+      return Buffer.from(attachment.bytes);
+    }
+    throw new Error("Fichier introuvable.");
   }
-  return readUpload(attachment.storageKey);
 }
 
 function isMissingBytesField(error: unknown) {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FileUIPart, UIMessage } from "ai";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatScroller } from "@/components/ChatScroller";
+import { ImageSkeleton } from "@/components/GeneratedImage";
 import { PromptForm } from "@/components/PromptForm";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -241,17 +242,22 @@ export function ChatPanel({
       const data = await readApiJson<{
         error?: string;
         url?: string;
+        preview?: string;
         name?: string;
         mediaType?: string;
       }>(response);
-      if (!response.ok || !data.url || !data.mediaType) {
+      if (!response.ok || !data.mediaType) {
+        throw new Error(data.error ?? "Image impossible");
+      }
+      const imageUrl = data.preview ?? data.url;
+      if (!imageUrl) {
         throw new Error(data.error ?? "Image impossible");
       }
       const imagePart: FileUIPart = {
         type: "file",
         filename: data.name ?? "image.png",
         mediaType: data.mediaType,
-        url: data.url,
+        url: imageUrl,
       };
       setMessages((current) => [
         ...current,
@@ -335,13 +341,16 @@ export function ChatPanel({
               onAttachAudio={attachAudio}
             />
           ))}
-          {status === "submitted" || mediaBusy ? (
+          {mediaBusy === "image" ? (
+            <div className="flex flex-col items-start gap-3">
+              <p className="text-sm text-muted-foreground">
+                Génération de l’image…
+              </p>
+              <ImageSkeleton />
+            </div>
+          ) : status === "submitted" || mediaBusy ? (
             <p className="text-sm text-muted-foreground">
-              {mediaBusy === "son"
-                ? "Génération du son…"
-                : mediaBusy === "image"
-                  ? "Génération de l’image…"
-                  : "Réflexion…"}
+              {mediaBusy === "son" ? "Génération du son…" : "Réflexion…"}
             </p>
           ) : null}
         </ChatScroller>

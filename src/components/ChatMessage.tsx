@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { AttachmentCard, AttachmentCardRow } from "@/components/AttachmentCard";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { GeneratedImage } from "@/components/GeneratedImage";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Message, MessageContent } from "@/components/ui/message";
@@ -102,19 +103,11 @@ function FileParts({ message }: { message: UIMessage }) {
   return (
     <div className="flex w-full flex-col items-start gap-2">
       {imageFiles.map((file, index) => (
-        <a
+        <GeneratedImage
           key={`${file.url}-img-${index}`}
-          href={file.url}
-          target="_blank"
-          rel="noreferrer"
-          className="block max-w-full"
-        >
-          <img
-            src={file.url}
-            alt={file.filename ?? "Image"}
-            className="max-h-80 max-w-full rounded-2xl object-contain"
-          />
-        </a>
+          src={file.url}
+          alt={file.filename ?? "Image"}
+        />
       ))}
       {otherFiles.length > 0 ? (
         <AttachmentCardRow>
