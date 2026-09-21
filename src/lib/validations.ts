@@ -112,6 +112,14 @@ export const imageSchema = z.object({
     .max(2000, "Prompt trop long"),
 });
 
+export const videoSchema = z.object({
+  prompt: z
+    .string()
+    .trim()
+    .min(3, "Décris la vidéo")
+    .max(2000, "Prompt trop long"),
+});
+
 export function firstZodMessage(error: z.ZodError) {
   return error.issues[0]?.message ?? "Données invalides";
 }

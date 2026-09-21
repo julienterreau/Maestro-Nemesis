@@ -26,7 +26,10 @@ import {
   type CatalogModel,
 } from "@/lib/models";
 import { isAudioGenerationPrompt } from "@/lib/audio-prompt";
-import { isImageGenerationPrompt } from "@/lib/prompt-intent";
+import {
+  isImageGenerationPrompt,
+  isVideoGenerationPrompt,
+} from "@/lib/prompt-intent";
 import type { RouterPlugins } from "@/lib/openrouter-plugins";
 import type { Conversation } from "@/lib/types";
 import { readApiJson } from "@/lib/api-json";
@@ -88,7 +91,9 @@ export function ChatPanel({
     messages: conversation.messages,
   });
   const synced = useRef("");
-  const [mediaBusy, setMediaBusy] = useState<null | "son" | "image">(null);
+  const [mediaBusy, setMediaBusy] = useState<null | "son" | "image" | "video">(
+    null,
+  );
   const isBusy = status === "submitted" || status === "streaming" || Boolean(mediaBusy);
 
   useEffect(() => {
@@ -101,6 +106,10 @@ export function ChatPanel({
   async function submitPrompt(text: string, files: File[] = []) {
     if (files.length === 0 && isAudioGenerationPrompt(text)) {
       await generateMusic(text);
+      return;
+    }
+    if (files.length === 0 && isVideoGenerationPrompt(text)) {
+      await generateVideo(text);
       return;
     }
     if (files.length === 0 && isImageGenerationPrompt(text)) {
@@ -295,6 +304,74 @@ export function ChatPanel({
     }
   }
 
+  async function generateVideo(prompt: string) {
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        parts: [{ type: "text", text: prompt }],
+      },
+    ]);
+    setMediaBusy("video");
+    toast.info("Génération de la vidéo… Seedance. Ça peut prendre une minute.");
+    try {
+      const response = await fetch("/api/videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await readApiJson<{
+        error?: string;
+        url?: string;
+        name?: string;
+        mediaType?: string;
+      }>(response);
+      if (!response.ok || !data.url || !data.mediaType) {
+        throw new Error(data.error ?? "Vidéo impossible");
+      }
+      const videoPart: FileUIPart = {
+        type: "file",
+        filename: data.name ?? "video.mp4",
+        mediaType: data.mediaType,
+        url: data.url,
+      };
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: "Voici la vidéo générée.",
+            },
+            videoPart,
+          ],
+        },
+      ]);
+    } catch (videoError) {
+      const message =
+        videoError instanceof Error ? videoError.message : "Vidéo impossible";
+      toast.error(message);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: `Impossible de générer la vidéo : ${message}`,
+            },
+          ],
+        },
+      ]);
+    } finally {
+      setMediaBusy(null);
+    }
+  }
+
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {messages.length === 0 ? (
@@ -303,8 +380,8 @@ export function ChatPanel({
             <EmptyHeader className="items-center text-center">
               <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
               <EmptyDescription className="text-pretty">
-                Venice pour le texte. Un son, une image ou un fichier : le
-                modèle adapté est choisi tout seul.
+                Venice pour le texte. Un son, une image, une vidéo ou un
+                fichier : le modèle adapté est choisi tout seul.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent className="items-center gap-2">
@@ -347,6 +424,13 @@ export function ChatPanel({
                 Génération de l’image…
               </p>
               <ImageSkeleton />
+            </div>
+          ) : mediaBusy === "video" ? (
+            <div className="flex flex-col items-start gap-3">
+              <p className="text-sm text-muted-foreground">
+                Génération de la vidéo… Seedance
+              </p>
+              <ImageSkeleton className="aspect-video w-full max-w-md" />
             </div>
           ) : status === "submitted" || mediaBusy ? (
             <p className="text-sm text-muted-foreground">

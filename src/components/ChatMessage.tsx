@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { AttachmentCard, AttachmentCardRow } from "@/components/AttachmentCard";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { ChatVideo } from "@/components/ChatVideo";
 import { GeneratedImage } from "@/components/GeneratedImage";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -95,9 +96,12 @@ function FileParts({ message }: { message: UIMessage }) {
   if (files.length === 0) return null;
   const audioFiles = files.filter((file) => file.mediaType.startsWith("audio/"));
   const imageFiles = files.filter((file) => file.mediaType.startsWith("image/"));
+  const videoFiles = files.filter((file) => file.mediaType.startsWith("video/"));
   const otherFiles = files.filter(
     (file) =>
-      !file.mediaType.startsWith("audio/") && !file.mediaType.startsWith("image/"),
+      !file.mediaType.startsWith("audio/") &&
+      !file.mediaType.startsWith("image/") &&
+      !file.mediaType.startsWith("video/"),
   );
 
   return (
@@ -107,6 +111,13 @@ function FileParts({ message }: { message: UIMessage }) {
           key={`${file.url}-img-${index}`}
           src={file.url}
           alt={file.filename ?? "Image"}
+        />
+      ))}
+      {videoFiles.map((file, index) => (
+        <ChatVideo
+          key={`${file.url}-video-${index}`}
+          src={file.url}
+          label={file.filename ?? "Vidéo"}
         />
       ))}
       {otherFiles.length > 0 ? (
