@@ -12,6 +12,7 @@ import { resolveModelForMessages } from "@/lib/models";
 import { getOpenRouterCatalog } from "@/lib/openrouter-catalog";
 import { getOpenRouter } from "@/lib/openrouter";
 import { parseRouterPlugins } from "@/lib/openrouter-plugins";
+import { publicAudioError } from "@/lib/audio";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 60;
@@ -129,5 +130,5 @@ function publicChatError(error: unknown) {
   if (/DEPLOYMENT_NOT_FOUND|deployment could not be found/i.test(message)) {
     return "Le fichier n’est plus accessible depuis ce déploiement Vercel. Renvoie l’image.";
   }
-  return message || "Impossible d’obtenir une réponse OpenRouter.";
+  return publicAudioError(message) || "Impossible d’obtenir une réponse OpenRouter.";
 }

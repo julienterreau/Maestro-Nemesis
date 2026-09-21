@@ -5,7 +5,7 @@ export const DEFAULT_MODEL = VENICE_MODEL;
 
 export const MEDIA_MODEL = "google/gemini-2.5-flash";
 export const VISION_MODEL = MEDIA_MODEL;
-export const IMAGE_GEN_MODEL = "google/gemini-2.5-flash-image";
+export const IMAGE_GEN_MODEL = "google/gemini-3.1-flash-image";
 export const VIDEO_GEN_MODEL = "bytedance/seedance-2.0";
 
 export type MediaKind = "image" | "audio" | "video" | "pdf";

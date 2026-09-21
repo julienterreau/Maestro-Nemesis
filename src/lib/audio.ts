@@ -12,10 +12,19 @@ export const MUSIC_MODELS = [
 ] as const;
 
 export function publicAudioError(message: string) {
+  if (/insufficient credits|never purchased credits|payment required|402/i.test(message)) {
+    return "Pas de crédits OpenRouter. Recharge sur openrouter.ai/settings/credits — Gemini, images et vidéos sont payants.";
+  }
+  if (/no endpoints found/i.test(message)) {
+    return "Aucun endpoint image n’est dispo pour ce modèle (retiré, ou bloqué par Privacy OpenRouter). Réessaie, on bascule sur un autre modèle.";
+  }
+  if (/user not found/i.test(message)) {
+    return "Clé OpenRouter invalide (souvent une management key). Crée une clé API modèles sur openrouter.ai/settings/keys, mets-la dans .env.local, puis relance le serveur.";
+  }
   if (/zero data retention|zdr|data policy/i.test(message)) {
     return "Les modèles voix et musique n’offrent pas le zéro rétention. Autorise la collecte sur openrouter.ai/settings/privacy, uniquement pour l’audio.";
   }
-  if (/stream\s*:\s*true/i.test(message)) {
+  if (/stream\s*:\strue/i.test(message)) {
     return "Le modèle audio exige un flux. Réessaie, c’est maintenant activé côté serveur.";
   }
   return message || "Audio OpenRouter indisponible.";
