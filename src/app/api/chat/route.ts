@@ -43,7 +43,7 @@ async function hydrateFileParts(messages: UIMessage[]) {
           const id = attachmentIdFromUrl(filePart.url);
           if (!id) return filePart;
           const canHydrate =
-            /^(image|audio|video)\//.test(filePart.mediaType) ||
+            /^(image|audio)\//.test(filePart.mediaType) ||
             filePart.mediaType === "application/pdf";
           if (!canHydrate) return filePart;
 
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model: openrouter.chat(modelId),
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(forLanguageModel(messages)),
     abortSignal: request.signal,
     maxOutputTokens: 8192,
   });
@@ -113,6 +113,23 @@ export async function POST(request: Request) {
   });
 }
 
+function forLanguageModel(messages: UIMessage[]): UIMessage[] {
+  return messages.map((message) => {
+    const parts: UIMessage["parts"] = [];
+    for (const part of message.parts) {
+      if (part.type === "file" && part.mediaType.startsWith("video/")) {
+        parts.push({
+          type: "text",
+          text: `[Vidéo jointe : ${part.filename ?? "video.mp4"}]`,
+        });
+      } else {
+        parts.push(part);
+      }
+    }
+    return { ...message, parts };
+  });
+}
+
 function publicChatError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   if (/image input/i.test(message)) {
@@ -120,6 +137,9 @@ function publicChatError(error: unknown) {
   }
   if (/audio input/i.test(message)) {
     return "Ce modèle ne lit pas l’audio. Passez sur Gemini ou GPT-4o.";
+  }
+  if (/file part media type video/i.test(message)) {
+    return "La vidéo s’affiche dans le chat, mais ce modèle ne peut pas la lire en fichier. Pose ta question en texte.";
   }
   if (/video input/i.test(message)) {
     return "Ce modèle ne lit pas la vidéo. Passez sur Gemini 2.5 Flash.";
