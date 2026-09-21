@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +24,7 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
   const catalog = models.length > 0 ? models : FEATURED_MODELS;
   const current = findCatalogModel(model, catalog) ?? {
     id: model,
@@ -37,13 +38,16 @@ export function ModelPicker({
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const list = needle
+    let list = needle
       ? catalog.filter((item) =>
           `${item.provider} ${item.name} ${item.id}`.toLowerCase().includes(needle),
         )
       : catalog;
+    if (current.id && !list.some((item) => item.id === current.id)) {
+      list = [current, ...list];
+    }
     return list.slice(0, 80);
-  }, [catalog, query]);
+  }, [catalog, query, current]);
 
   useEffect(() => {
     function handlePointer(event: MouseEvent) {
@@ -55,21 +59,26 @@ export function ModelPicker({
     return () => document.removeEventListener("mousedown", handlePointer);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [open, model]);
+
   return (
     <div ref={rootRef} className="relative min-w-0">
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-8 max-w-[46vw] min-w-0 items-center gap-1 rounded-xl px-2 text-left text-xs text-muted-foreground outline-none hover:bg-muted disabled:opacity-50 sm:max-w-56"
+        className="inline-flex h-8 max-w-[46vw] min-w-0 cursor-pointer items-center gap-1 rounded-xl px-2 text-left text-xs text-foreground outline-none hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-56"
       >
         <span className="truncate">
-          <span className="sm:hidden">{current.provider}</span>
+          <span className="sm:hidden">{current.name}</span>
           <span className="hidden sm:inline">
             {current.provider} · {current.name}
           </span>
         </span>
-        <ChevronDownIcon className="size-3 shrink-0" />
+        <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
       </button>
 
       {open ? (
@@ -92,22 +101,36 @@ export function ModelPicker({
             ) : (
               filtered.map((item) => {
                 const media = modelMediaLabel(item.id, catalog);
+                const active = item.id === model;
                 return (
                   <button
                     key={item.id}
+                    ref={active ? activeRef : undefined}
                     type="button"
+                    aria-current={active ? "true" : undefined}
                     onClick={() => {
                       onChange(item.id);
                       setOpen(false);
                       setQuery("");
                     }}
-                    className="flex w-full flex-col items-start rounded-xl px-2 py-1.5 text-left hover:bg-muted"
+                    className={`flex w-full cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
+                      active
+                        ? "bg-muted ring-1 ring-border"
+                        : "hover:bg-muted/70"
+                    }`}
                   >
-                    <span className="text-sm">
-                      {item.provider}
-                      {media ? ` · ${media}` : ""}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm">
+                        {item.provider}
+                        {media ? ` · ${media}` : ""}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {item.name}
+                      </span>
                     </span>
-                    <span className="text-xs text-muted-foreground">{item.name}</span>
+                    {active ? (
+                      <CheckIcon className="size-4 shrink-0 text-primary" />
+                    ) : null}
                   </button>
                 );
               })

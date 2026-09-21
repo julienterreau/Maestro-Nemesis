@@ -64,10 +64,22 @@ export function loadAttachmentBytes(attachment: {
   return readUpload(attachment.storageKey);
 }
 
-function isUnknownBytesArg(error: unknown) {
-  return (
-    error instanceof Error && /unknown argument [`']bytes[`']/i.test(error.message)
+function isMissingBytesField(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  if (/unknown argument [`']bytes[`']/i.test(error.message)) return true;
+  if (/bytes of relation attachment/i.test(error.message)) return true;
+  if (/column .*bytes/i.test(error.message)) return true;
+  return (error as { code?: string }).code === "P2022";
+}
+
+let bytesColumnReady = false;
+
+async function ensureAttachmentBytesColumn() {
+  if (bytesColumnReady) return;
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "attachment" ADD COLUMN IF NOT EXISTS "bytes" BYTEA`,
   );
+  bytesColumnReady = true;
 }
 
 export async function createAttachmentRecord(input: {
@@ -86,17 +98,41 @@ export async function createAttachmentRecord(input: {
     storageKey,
   };
 
-  try {
-    const attachment = await prisma.attachment.create({
+  const createWithBytes = () =>
+    prisma.attachment.create({
       data: { ...base, bytes: new Uint8Array(input.bytes) },
     });
+
+  try {
+    const attachment = await createWithBytes();
     await saveUpload(storageKey, input.bytes);
     return { attachment, storedInDb: true };
   } catch (error) {
-    if (!isUnknownBytesArg(error)) throw error;
-    const attachment = await prisma.attachment.create({ data: base });
-    await saveUpload(storageKey, input.bytes);
-    return { attachment, storedInDb: false };
+    if (!isMissingBytesField(error)) throw error;
+    try {
+      await ensureAttachmentBytesColumn();
+      const attachment = await createWithBytes();
+      await saveUpload(storageKey, input.bytes);
+      return { attachment, storedInDb: true };
+    } catch {
+      try {
+        const attachment = await prisma.attachment.create({ data: base });
+        await saveUpload(storageKey, input.bytes);
+        return { attachment, storedInDb: false };
+      } catch {
+        await saveUpload(storageKey, input.bytes);
+        return {
+          attachment: {
+            ...base,
+            id: storageKey,
+            messageId: null,
+            createdAt: new Date(),
+            bytes: null,
+          },
+          storedInDb: false,
+        };
+      }
+    }
   }
 }
 

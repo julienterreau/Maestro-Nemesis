@@ -1,9 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FileUIPart, UIMessage } from "ai";
 import { ChatMessage } from "@/components/ChatMessage";
+import { ChatScroller } from "@/components/ChatScroller";
 import { PromptForm } from "@/components/PromptForm";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -15,21 +16,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@/components/ui/message-scroller";
-import {
   FEATURED_MODELS,
   MEDIA_MODEL,
   collectMediaKinds,
+  getModelLabel,
   mediaSwitchLabel,
-  modelSupportsMedia,
+  pickCapableModel,
   type CatalogModel,
 } from "@/lib/models";
+import { isAudioGenerationPrompt } from "@/lib/audio-prompt";
+import { isImageGenerationPrompt } from "@/lib/prompt-intent";
 import type { RouterPlugins } from "@/lib/openrouter-plugins";
 import type { Conversation } from "@/lib/types";
 import { readApiJson } from "@/lib/api-json";
@@ -91,7 +87,8 @@ export function ChatPanel({
     messages: conversation.messages,
   });
   const synced = useRef("");
-  const isBusy = status === "submitted" || status === "streaming";
+  const [mediaBusy, setMediaBusy] = useState<null | "son" | "image">(null);
+  const isBusy = status === "submitted" || status === "streaming" || Boolean(mediaBusy);
 
   useEffect(() => {
     const next = JSON.stringify(messages);
@@ -101,6 +98,14 @@ export function ChatPanel({
   }, [messages, onMessagesChange]);
 
   async function submitPrompt(text: string, files: File[] = []) {
+    if (files.length === 0 && isAudioGenerationPrompt(text)) {
+      await generateMusic(text);
+      return;
+    }
+    if (files.length === 0 && isImageGenerationPrompt(text)) {
+      await generateImage(text);
+      return;
+    }
     const uploaded = files.length > 0 ? await uploadFiles(files) : [];
     const parts: UIMessage["parts"] = [];
     if (text.trim()) {
@@ -116,12 +121,11 @@ export function ChatPanel({
 
     const nextMessages = [...messages, { role: "user" as const, parts }];
     const kinds = collectMediaKinds(nextMessages);
-    let model = conversation.model;
-    if (kinds.some((kind) => !modelSupportsMedia(model, kind, models))) {
-      model = MEDIA_MODEL;
+    const model = pickCapableModel(kinds, models, conversation.model);
+    if (model !== conversation.model) {
       onModelChange(model);
       toast.info(
-        `Ce modèle ne lit pas ${mediaSwitchLabel(kinds)}. Passage sur Gemini 2.5 Flash.`,
+        `Ce modèle ne gère pas ${mediaSwitchLabel(kinds)}. Passage sur ${getModelLabel(model, models)}.`,
       );
     }
 
@@ -145,10 +149,11 @@ export function ChatPanel({
       {
         id: userId,
         role: "user",
-        parts: [{ type: "text", text: `Crée une musique : ${prompt}` }],
+        parts: [{ type: "text", text: prompt }],
       },
     ]);
-    toast.info("Composition en cours…");
+    setMediaBusy("son");
+    toast.info("Génération du son en cours…");
     try {
       const response = await fetch("/api/audio/music", {
         method: "POST",
@@ -161,13 +166,14 @@ export function ChatPanel({
         name?: string;
         mediaType?: string;
         title?: string;
+        kind?: string;
       }>(response);
       if (!response.ok || !data.url || !data.mediaType) {
-        throw new Error(data.error ?? "Musique impossible");
+        throw new Error(data.error ?? "Audio impossible");
       }
       const audioPart: FileUIPart = {
         type: "file",
-        filename: data.name ?? "musique.wav",
+        filename: data.name ?? "audio.wav",
         mediaType: data.mediaType,
         url: data.url,
       };
@@ -179,88 +185,167 @@ export function ChatPanel({
           parts: [
             {
               type: "text",
-              text: "Morceau généré. Tu peux l’écouter ci-dessous.",
+              text:
+                data.kind === "soundscape"
+                  ? "Voici le son demandé. Tu peux l’écouter ci-dessous (lecture en boucle)."
+                  : "Morceau généré. Tu peux l’écouter ci-dessous.",
             },
             audioPart,
           ],
         },
       ]);
     } catch (musicError) {
-      toast.error(
-        musicError instanceof Error ? musicError.message : "Musique impossible",
-      );
+      const message =
+        musicError instanceof Error ? musicError.message : "Audio impossible";
+      toast.error(message);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: `Impossible de générer l’audio : ${message}`,
+            },
+          ],
+        },
+      ]);
+    } finally {
+      setMediaBusy(null);
+    }
+  }
+
+  async function generateImage(prompt: string) {
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        parts: [{ type: "text", text: prompt }],
+      },
+    ]);
+    setMediaBusy("image");
+    if (conversation.model !== MEDIA_MODEL) {
+      onModelChange(MEDIA_MODEL);
+      toast.info("Génération d’image… Passage sur Gemini.");
+    } else {
+      toast.info("Génération d’image…");
+    }
+    try {
+      const response = await fetch("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await readApiJson<{
+        error?: string;
+        url?: string;
+        name?: string;
+        mediaType?: string;
+      }>(response);
+      if (!response.ok || !data.url || !data.mediaType) {
+        throw new Error(data.error ?? "Image impossible");
+      }
+      const imagePart: FileUIPart = {
+        type: "file",
+        filename: data.name ?? "image.png",
+        mediaType: data.mediaType,
+        url: data.url,
+      };
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: "Voici l’image générée.",
+            },
+            imagePart,
+          ],
+        },
+      ]);
+    } catch (imageError) {
+      const message =
+        imageError instanceof Error ? imageError.message : "Image impossible";
+      toast.error(message);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: `Impossible de générer l’image : ${message}`,
+            },
+          ],
+        },
+      ]);
+    } finally {
+      setMediaBusy(null);
     }
   }
 
   return (
-    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1">
-      <MessageScrollerProvider autoScroll>
-        <MessageScroller>
-          {messages.length === 0 ? (
-            <div className="flex h-full w-full flex-1 items-center justify-center px-4 py-6">
-              <Empty className="max-w-lg border-none p-0 text-center sm:p-8">
-                <EmptyHeader className="items-center text-center">
-                  <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
-                  <EmptyDescription className="text-pretty">
-                    Venice pour le texte. Écoute une réponse, ou crée une
-                    musique avec l’icône note. Image / audio / PDF : Gemini.
-                  </EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent className="items-center gap-2">
-                  {SUGGESTIONS.map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      type="button"
-                      variant="outline"
-                      className="h-auto w-full justify-center whitespace-normal px-3 py-2.5 text-center text-sm font-normal text-pretty"
-                      disabled={configured === false}
-                      onClick={() =>
-                        suggestion.startsWith("Compose")
-                          ? void generateMusic(suggestion)
-                          : submitPrompt(suggestion)
-                      }
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
-                </EmptyContent>
-              </Empty>
-            </div>
-          ) : (
-            <>
-              <MessageScrollerViewport>
-                <MessageScrollerContent className="mx-auto w-full max-w-3xl px-4 py-6">
-                  {messages.map((message, index) => (
-                    <MessageScrollerItem
-                      key={message.id}
-                      messageId={message.id}
-                      scrollAnchor={message.role === "user"}
-                    >
-                      <ChatMessage
-                        message={message}
-                        isStreaming={
-                          isBusy &&
-                          message.role === "assistant" &&
-                          index === messages.length - 1
-                        }
-                        onAttachAudio={attachAudio}
-                      />
-                    </MessageScrollerItem>
-                  ))}
-                  {status === "submitted" ? (
-                    <MessageScrollerItem messageId="thinking">
-                      <p className="text-sm text-muted-foreground">Réflexion…</p>
-                    </MessageScrollerItem>
-                  ) : null}
-                </MessageScrollerContent>
-              </MessageScrollerViewport>
-              <MessageScrollerButton>Derniers messages</MessageScrollerButton>
-            </>
-          )}
-        </MessageScroller>
-      </MessageScrollerProvider>
-      </div>
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {messages.length === 0 ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-6">
+          <Empty className="max-w-lg border-none p-0 text-center sm:p-8">
+            <EmptyHeader className="items-center text-center">
+              <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
+              <EmptyDescription className="text-pretty">
+                Venice pour le texte. Un son, une image ou un fichier : le
+                modèle adapté est choisi tout seul.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent className="items-center gap-2">
+              {SUGGESTIONS.map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-center whitespace-normal px-3 py-2.5 text-center text-sm font-normal text-pretty"
+                  disabled={configured === false}
+                  onClick={() =>
+                    suggestion.startsWith("Compose")
+                      ? void generateMusic(suggestion)
+                      : submitPrompt(suggestion)
+                  }
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </EmptyContent>
+          </Empty>
+        </div>
+      ) : (
+        <ChatScroller follow={isBusy}>
+          {messages.map((message, index) => (
+            <ChatMessage
+              key={message.id}
+              message={message}
+              isStreaming={
+                isBusy &&
+                message.role === "assistant" &&
+                index === messages.length - 1
+              }
+              onAttachAudio={attachAudio}
+            />
+          ))}
+          {status === "submitted" || mediaBusy ? (
+            <p className="text-sm text-muted-foreground">
+              {mediaBusy === "son"
+                ? "Génération du son…"
+                : mediaBusy === "image"
+                  ? "Génération de l’image…"
+                  : "Réflexion…"}
+            </p>
+          ) : null}
+        </ChatScroller>
+      )}
 
       <div className="mx-auto w-full max-w-3xl space-y-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
         {error ? (
@@ -275,7 +360,6 @@ export function ChatPanel({
           isBusy={isBusy}
           disabled={configured === false}
           onSubmit={submitPrompt}
-          onGenerateMusic={(prompt) => void generateMusic(prompt)}
           onStop={() => stop()}
           models={models}
           plugins={plugins}

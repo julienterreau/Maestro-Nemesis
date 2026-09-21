@@ -8,6 +8,12 @@ import {
   publicAudioError,
   saveGeneratedAudio,
 } from "@/lib/audio";
+import {
+  detectSoundscapeKind,
+  isSoundscapePrompt,
+  toSoundEffectPrompt,
+} from "@/lib/audio-prompt";
+import { synthesizeSoundscape } from "@/lib/soundscape";
 import { musicSchema } from "@/lib/validations";
 
 export const maxDuration = 60;
@@ -18,12 +24,6 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
-  if (!process.env.OPENROUTER_API_KEY?.trim()) {
-    return NextResponse.json(
-      { error: "OPENROUTER_API_KEY manquante." },
-      { status: 500 },
-    );
-  }
 
   const parsed = musicSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -33,11 +33,40 @@ export async function POST(request: Request) {
     );
   }
 
+  const soundscape = !parsed.data.lyrics && isSoundscapePrompt(parsed.data.prompt);
+  const kind = soundscape ? detectSoundscapeKind(parsed.data.prompt) : null;
+
+  if (kind) {
+    const bytes = synthesizeSoundscape(kind);
+    const file = await saveGeneratedAudio(
+      session.user.id,
+      `ambiance-${kind}-${Date.now()}.wav`,
+      "audio/wav",
+      bytes,
+    );
+    return NextResponse.json({
+      ...file,
+      kind: "soundscape",
+      title: parsed.data.prompt.slice(0, 80),
+    });
+  }
+
+  if (!process.env.OPENROUTER_API_KEY?.trim()) {
+    return NextResponse.json(
+      { error: "OPENROUTER_API_KEY manquante." },
+      { status: 500 },
+    );
+  }
+
   const prompt = parsed.data.lyrics
     ? `${parsed.data.prompt}\n\nParoles :\n${parsed.data.lyrics}`
-    : parsed.data.prompt;
+    : soundscape
+      ? toSoundEffectPrompt(parsed.data.prompt)
+      : parsed.data.prompt;
 
-  let lastError = "Génération musicale impossible.";
+  let lastError = soundscape
+    ? "Génération du son impossible."
+    : "Génération musicale impossible.";
 
   for (const model of MUSIC_MODELS) {
     const response = await fetch(
@@ -81,12 +110,13 @@ export async function POST(request: Request) {
 
     const file = await saveGeneratedAudio(
       session.user.id,
-      `musique-${Date.now()}.${audioExtension(audio.mimeType)}`,
+      `${soundscape ? "ambiance" : "musique"}-${Date.now()}.${audioExtension(audio.mimeType)}`,
       audio.mimeType,
       audio.bytes,
     );
     return NextResponse.json({
       ...file,
+      kind: soundscape ? "soundscape" : "music",
       title: parsed.data.prompt.slice(0, 80),
     });
   }

@@ -48,9 +48,9 @@ export function Sidebar({
         <div className="flex items-start justify-between gap-3 p-4 pb-3">
           <div className="min-w-0">
             <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-              Julien Terreau
+              Maestro
             </p>
-            <h1 className="text-lg font-semibold tracking-tight">Powerfull Rokia AI</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Nemesis AI</h1>
           </div>
           <Button
             type="button"

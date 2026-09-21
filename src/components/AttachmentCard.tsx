@@ -1,6 +1,6 @@
 "use client";
 
-import { FileIcon, FileTextIcon, MusicIcon, XIcon } from "lucide-react";
+import { FileIcon, FileTextIcon, XIcon } from "lucide-react";
 
 export function AttachmentCard({
   src,
@@ -32,8 +32,7 @@ export function AttachmentCard({
         <video src={src} muted playsInline className="size-full object-cover" />
       ) : null}
       {kind === "audio" ? (
-        <div className="flex size-full flex-col items-center justify-center gap-1 px-1 text-muted-foreground">
-          <MusicIcon className="size-4" />
+        <div className="flex size-full items-center justify-center px-1 text-muted-foreground">
           <span className="w-full truncate text-center text-[10px]">{name}</span>
         </div>
       ) : null}

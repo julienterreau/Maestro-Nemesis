@@ -5,6 +5,7 @@ export const DEFAULT_MODEL = VENICE_MODEL;
 
 export const MEDIA_MODEL = "google/gemini-2.5-flash";
 export const VISION_MODEL = MEDIA_MODEL;
+export const IMAGE_GEN_MODEL = "google/gemini-2.5-flash-image";
 
 export type MediaKind = "image" | "audio" | "video" | "pdf";
 
@@ -145,6 +146,26 @@ export function modelSupportsMedia(
   return Boolean(findCatalogModel(id, catalog)?.[kind]);
 }
 
+export function pickCapableModel(
+  kinds: MediaKind[],
+  catalog: CatalogModel[] = FEATURED_MODELS,
+  preferred?: string,
+) {
+  if (kinds.length === 0) {
+    return isModelId(preferred ?? "") ? preferred! : DEFAULT_MODEL;
+  }
+  if (preferred && kinds.every((kind) => modelSupportsMedia(preferred, kind, catalog))) {
+    return preferred;
+  }
+  if (kinds.every((kind) => modelSupportsMedia(MEDIA_MODEL, kind, catalog))) {
+    return MEDIA_MODEL;
+  }
+  const match =
+    FEATURED_MODELS.find((model) => kinds.every((kind) => model[kind])) ??
+    catalog.find((model) => kinds.every((kind) => model[kind]));
+  return match?.id ?? MEDIA_MODEL;
+}
+
 export function resolveModelForMessages(
   modelId: string,
   messages: MessageLike[],
@@ -152,13 +173,7 @@ export function resolveModelForMessages(
 ) {
   const kinds = collectMediaKinds(messages);
   const selected = isModelId(modelId) ? modelId : DEFAULT_MODEL;
-
-  if (kinds.length === 0) return selected;
-  if (kinds.every((kind) => modelSupportsMedia(selected, kind, catalog))) {
-    return selected;
-  }
-
-  return MEDIA_MODEL;
+  return pickCapableModel(kinds, catalog, selected);
 }
 
 export function mediaSwitchLabel(kinds: MediaKind[]) {

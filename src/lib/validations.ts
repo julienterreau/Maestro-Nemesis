@@ -104,6 +104,14 @@ export const musicSchema = z.object({
   lyrics: z.string().trim().max(4000).optional(),
 });
 
+export const imageSchema = z.object({
+  prompt: z
+    .string()
+    .trim()
+    .min(3, "Décris l’image")
+    .max(2000, "Prompt trop long"),
+});
+
 export function firstZodMessage(error: z.ZodError) {
   return error.issues[0]?.message ?? "Données invalides";
 }

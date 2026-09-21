@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Powerfull Rokia AI",
+  title: "Nemesis AI",
   description:
     "Interface locale pour discuter avec les modèles cloud via OpenRouter.",
 };
@@ -32,15 +32,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="fr"
       suppressHydrationWarning
-      className={cn(
-        "dark h-full antialiased font-sans",
+        className={cn(
+        "dark h-full overflow-hidden antialiased font-sans",
         geistSans.variable,
         geistMono.variable,
       )}
     >
       <body
         suppressHydrationWarning
-        className="min-h-full overflow-x-hidden bg-background text-foreground"
+        className="h-full overflow-hidden bg-background text-foreground"
       >
         {children}
         <Toaster />

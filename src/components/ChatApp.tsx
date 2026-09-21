@@ -53,11 +53,11 @@ function ChatAppReady() {
   }, [load]);
 
   useEffect(() => {
-    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [sidebarOpen]);
+  }, []);
 
   const active = useMemo(
     () => conversations.find((conversation) => conversation.id === activeId),
@@ -107,7 +107,7 @@ function ChatAppReady() {
         onDelete={(id) => void remove(id)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center gap-2 border-b px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
           <Button
             type="button"
