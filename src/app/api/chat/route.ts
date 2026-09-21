@@ -8,8 +8,7 @@ import {
 } from "ai";
 import { getRequiredAdmin } from "@/lib/auth-user";
 import { attachmentIdFromUrl, loadAttachmentBytes } from "@/lib/files";
-import { resolveModelForMessages } from "@/lib/models";
-import { getOpenRouterCatalog } from "@/lib/openrouter-catalog";
+import { DEFAULT_MODEL, isModelId } from "@/lib/models";
 import { getOpenRouter } from "@/lib/openrouter";
 import { parseRouterPlugins } from "@/lib/openrouter-plugins";
 import { publicAudioError } from "@/lib/audio";
@@ -93,8 +92,7 @@ export async function POST(request: Request) {
   }
 
   const messages = await hydrateFileParts(body.messages);
-  const catalog = await getOpenRouterCatalog();
-  const modelId = resolveModelForMessages(body.model ?? "", messages, catalog);
+  const modelId = isModelId(body.model ?? "") ? body.model! : DEFAULT_MODEL;
   const plugins = parseRouterPlugins(body.plugins);
   const openrouter = getOpenRouter(modelId, plugins);
 

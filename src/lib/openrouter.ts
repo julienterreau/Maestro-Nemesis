@@ -24,6 +24,7 @@ export function getOpenRouter(modelId: string, plugins?: RouterPlugins) {
       if (typeof nextInit.body === "string") {
         try {
           const payload = JSON.parse(nextInit.body) as Record<string, unknown>;
+          payload.model = modelId;
           payload.provider = getOpenRouterProviderOptions(modelId);
 
           if (plugins && hasEnabledPlugin(plugins)) {

@@ -6,12 +6,19 @@ import { AttachmentCard, AttachmentCardRow } from "@/components/AttachmentCard";
 import { ModelPicker } from "@/components/ModelPicker";
 import { MultiModelSettings } from "@/components/MultiModelSettings";
 import type { RouterPlugins } from "@/lib/openrouter-plugins";
+import { isAudioGenerationPrompt } from "@/lib/audio-prompt";
+import {
+  isImageGenerationPrompt,
+  isVideoGenerationPrompt,
+} from "@/lib/prompt-intent";
 import {
   FEATURED_MODELS,
+  capabilityHint,
   collectMediaKinds,
   guessMediaType,
-  pickCapableModel,
+  modelSupportsMedia,
   type CatalogModel,
+  type MediaKind,
 } from "@/lib/models";
 import {
   InputGroup,
@@ -46,6 +53,35 @@ function useObjectUrls(files: File[]) {
   return urls;
 }
 
+function blockedKindFor(
+  text: string,
+  files: File[],
+  model: string,
+  catalog: CatalogModel[],
+): MediaKind | null {
+  if (files.length > 0) {
+    const kinds = collectMediaKinds([
+      {
+        parts: files.map((file) => ({
+          type: "file",
+          mediaType: guessMediaType(file.name, file.type),
+        })),
+      },
+    ]);
+    return kinds.find((kind) => !modelSupportsMedia(model, kind, catalog)) ?? null;
+  }
+  if (isVideoGenerationPrompt(text) && !modelSupportsMedia(model, "video", catalog)) {
+    return "video";
+  }
+  if (isImageGenerationPrompt(text) && !modelSupportsMedia(model, "image", catalog)) {
+    return "image";
+  }
+  if (isAudioGenerationPrompt(text) && !modelSupportsMedia(model, "audio", catalog)) {
+    return "audio";
+  }
+  return null;
+}
+
 export function PromptForm({
   model,
   onModelChange,
@@ -62,20 +98,11 @@ export function PromptForm({
   const [dragOver, setDragOver] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const previewUrls = useObjectUrls(files);
+  const blockedKind = blockedKindFor(input, files, model, models);
+  const hint = blockedKind ? capabilityHint(blockedKind, models) : null;
 
   function addFiles(list: FileList | File[]) {
-    const next = Array.from(list);
-    setFiles((currentFiles) => [...currentFiles, ...next]);
-    const kinds = collectMediaKinds([
-      {
-        parts: next.map((file) => ({
-          type: "file",
-          mediaType: guessMediaType(file.name, file.type),
-        })),
-      },
-    ]);
-    const nextModel = pickCapableModel(kinds, models, model);
-    if (nextModel !== model) onModelChange(nextModel);
+    setFiles((currentFiles) => [...currentFiles, ...Array.from(list)]);
   }
 
   function handleSubmit(event?: React.FormEvent) {
@@ -90,7 +117,7 @@ export function PromptForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full"
+      className="w-full space-y-2"
       onDragOver={(event) => {
         event.preventDefault();
         setDragOver(true);
@@ -102,6 +129,18 @@ export function PromptForm({
         if (event.dataTransfer.files.length) addFiles(event.dataTransfer.files);
       }}
     >
+      {hint ? (
+        <p className="px-1 text-xs text-muted-foreground text-pretty">
+          {hint.shortText}{" "}
+          <button
+            type="button"
+            className="cursor-pointer font-medium text-foreground underline-offset-2 hover:underline"
+            onClick={() => onModelChange(hint.suggestedId)}
+          >
+            Choisir {hint.suggestedLabel}
+          </button>
+        </p>
+      ) : null}
       <InputGroup
         className={`h-auto min-h-16 items-start rounded-3xl border-border bg-card ${
           dragOver ? "border-primary" : ""
@@ -176,6 +215,7 @@ export function PromptForm({
               models={models}
               disabled={disabled || isBusy}
               onChange={onModelChange}
+              preferMedia={blockedKind}
             />
             <MultiModelSettings
               plugins={plugins}

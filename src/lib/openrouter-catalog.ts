@@ -40,19 +40,21 @@ function nameFromId(id: string, rawName?: string) {
 
 function toCatalogModel(item: OpenRouterModel): CatalogModel | null {
   if (!item.id) return null;
+  const inputs = item.architecture?.input_modalities ?? [];
   const outputs = item.architecture?.output_modalities ?? [];
   const modality = item.architecture?.modality ?? "";
   const isTextOut =
     outputs.includes("text") ||
     outputs.length === 0 ||
     modality.includes("->text");
-  if (!isTextOut) return null;
+  const caps = capabilitiesFromModalities([...inputs, ...outputs]);
+  if (!isTextOut && !caps.image && !caps.audio && !caps.video) return null;
 
   return {
     id: item.id,
     name: nameFromId(item.id, item.name),
     provider: providerFromId(item.id),
-    ...capabilitiesFromModalities(item.architecture?.input_modalities ?? []),
+    ...caps,
   };
 }
 
@@ -91,6 +93,9 @@ export async function getOpenRouterCatalog(): Promise<CatalogModel[]> {
       const featuredA = FEATURED_MODELS.some((item) => item.id === a.id);
       const featuredB = FEATURED_MODELS.some((item) => item.id === b.id);
       if (featuredA !== featuredB) return featuredA ? -1 : 1;
+      const freeA = a.id === "openrouter/free" || a.id.endsWith(":free");
+      const freeB = b.id === "openrouter/free" || b.id.endsWith(":free");
+      if (freeA !== freeB) return freeA ? -1 : 1;
       return a.name.localeCompare(b.name, "fr");
     });
 

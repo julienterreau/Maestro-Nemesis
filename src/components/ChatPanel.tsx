@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useRef, useState } from "react";
-import type { FileUIPart, UIMessage } from "ai";
+import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatScroller } from "@/components/ChatScroller";
 import { ImageSkeleton } from "@/components/GeneratedImage";
@@ -18,12 +18,11 @@ import {
 } from "@/components/ui/empty";
 import {
   FEATURED_MODELS,
-  MEDIA_MODEL,
+  capabilityHint,
   collectMediaKinds,
-  getModelLabel,
-  mediaSwitchLabel,
-  pickCapableModel,
+  modelSupportsMedia,
   type CatalogModel,
+  type MediaKind,
 } from "@/lib/models";
 import { isAudioGenerationPrompt } from "@/lib/audio-prompt";
 import {
@@ -89,6 +88,10 @@ export function ChatPanel({
   const { messages, sendMessage, setMessages, status, stop, error } = useChat({
     id: conversation.id,
     messages: conversation.messages,
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: { model: conversation.model, plugins },
+    }),
   });
   const synced = useRef("");
   const [mediaBusy, setMediaBusy] = useState<null | "son" | "image" | "video">(
@@ -103,16 +106,45 @@ export function ChatPanel({
     onMessagesChange(messages);
   }, [messages, onMessagesChange]);
 
+  function suggestMedia(kind: MediaKind, prompt: string) {
+    const hint = capabilityHint(kind, models);
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        parts: [{ type: "text", text: prompt }],
+      },
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        parts: [{ type: "text", text: hint.text }],
+      },
+    ]);
+  }
+
   async function submitPrompt(text: string, files: File[] = []) {
     if (files.length === 0 && isAudioGenerationPrompt(text)) {
+      if (!modelSupportsMedia(conversation.model, "audio", models)) {
+        suggestMedia("audio", text);
+        return;
+      }
       await generateMusic(text);
       return;
     }
     if (files.length === 0 && isVideoGenerationPrompt(text)) {
+      if (!modelSupportsMedia(conversation.model, "video", models)) {
+        suggestMedia("video", text);
+        return;
+      }
       await generateVideo(text);
       return;
     }
     if (files.length === 0 && isImageGenerationPrompt(text)) {
+      if (!modelSupportsMedia(conversation.model, "image", models)) {
+        suggestMedia("image", text);
+        return;
+      }
       await generateImage(text);
       return;
     }
@@ -129,17 +161,29 @@ export function ChatPanel({
 
     parts.push(...uploaded);
 
-    const nextMessages = [...messages, { role: "user" as const, parts }];
-    const kinds = collectMediaKinds(nextMessages);
-    const model = pickCapableModel(kinds, models, conversation.model);
-    if (model !== conversation.model) {
-      onModelChange(model);
-      toast.info(
-        `Ce modèle ne gère pas ${mediaSwitchLabel(kinds)}. Passage sur ${getModelLabel(model, models)}.`,
-      );
+    const kinds = collectMediaKinds([{ role: "user", parts }]);
+    const unsupported = kinds.find(
+      (kind) => !modelSupportsMedia(conversation.model, kind, models),
+    );
+    if (unsupported) {
+      const hint = capabilityHint(unsupported, models);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          parts,
+        },
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [{ type: "text", text: hint.text }],
+        },
+      ]);
+      return;
     }
 
-    void sendMessage({ parts }, { body: { model, plugins } });
+    void sendMessage({ parts }, { body: { model: conversation.model, plugins } });
   }
 
   function attachAudio(messageId: string, file: FileUIPart) {
@@ -236,12 +280,7 @@ export function ChatPanel({
       },
     ]);
     setMediaBusy("image");
-    if (conversation.model !== MEDIA_MODEL) {
-      onModelChange(MEDIA_MODEL);
-      toast.info("Génération d’image… Passage sur Gemini.");
-    } else {
-      toast.info("Génération d’image…");
-    }
+    toast.info("Génération d’image…");
     try {
       const response = await fetch("/api/images", {
         method: "POST",
@@ -380,8 +419,8 @@ export function ChatPanel({
             <EmptyHeader className="items-center text-center">
               <EmptyTitle className="text-pretty">Votre cloud IA, en local.</EmptyTitle>
               <EmptyDescription className="text-pretty">
-                Venice pour le texte. Un son, une image, une vidéo ou un
-                fichier : le modèle adapté est choisi tout seul.
+                Choisis un modèle, puis parle-lui. Pour une image, un son ou
+                une vidéo, filtre Images / Audio / Vidéo dans le sélecteur.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent className="items-center gap-2">
@@ -392,11 +431,7 @@ export function ChatPanel({
                   variant="outline"
                   className="h-auto w-full justify-center whitespace-normal px-3 py-2.5 text-center text-sm font-normal text-pretty"
                   disabled={configured === false}
-                  onClick={() =>
-                    suggestion.startsWith("Compose")
-                      ? void generateMusic(suggestion)
-                      : submitPrompt(suggestion)
-                  }
+                  onClick={() => submitPrompt(suggestion)}
                 >
                   {suggestion}
                 </Button>

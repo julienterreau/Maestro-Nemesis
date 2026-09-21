@@ -1,6 +1,7 @@
 export const VENICE_MODEL =
   "cognitivecomputations/dolphin-mistral-24b-venice-edition";
 
+export const FREE_CHAT_MODEL = "openrouter/free";
 export const DEFAULT_MODEL = VENICE_MODEL;
 
 export const MEDIA_MODEL = "google/gemini-2.5-flash";
@@ -26,6 +27,15 @@ export const FEATURED_MODELS: CatalogModel[] = [
     name: "Uncensored (0 rétention)",
     provider: "Venice",
     image: false,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "openrouter/free",
+    name: "Free Models Router",
+    provider: "OpenRouter",
+    image: true,
     audio: false,
     video: false,
     pdf: false,
@@ -67,6 +77,24 @@ export const FEATURED_MODELS: CatalogModel[] = [
     pdf: true,
   },
   {
+    id: IMAGE_GEN_MODEL,
+    name: "Gemini Flash Image",
+    provider: "Google",
+    image: true,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: VIDEO_GEN_MODEL,
+    name: "Seedance 2.0",
+    provider: "ByteDance",
+    image: false,
+    audio: false,
+    video: true,
+    pdf: false,
+  },
+  {
     id: "meta-llama/llama-3.3-70b-instruct",
     name: "Llama 3.3 70B",
     provider: "Meta",
@@ -80,11 +108,16 @@ export const FEATURED_MODELS: CatalogModel[] = [
 export const MODELS = FEATURED_MODELS;
 
 type MessageLike = {
+  role?: string;
   parts: Array<{ type: string; mediaType?: string }>;
 };
 
 export function isModelId(id: string) {
   return /^[\w.-]+\/[\w.:-]+$/.test(id) && id.length <= 180;
+}
+
+export function isFreeModel(id: string) {
+  return id === FREE_CHAT_MODEL || id.endsWith(":free");
 }
 
 export function isModelAllowed(id: string) {
@@ -172,9 +205,10 @@ export function resolveModelForMessages(
   messages: MessageLike[],
   catalog: CatalogModel[] = FEATURED_MODELS,
 ) {
-  const kinds = collectMediaKinds(messages);
   const selected = isModelId(modelId) ? modelId : DEFAULT_MODEL;
-  return pickCapableModel(kinds, catalog, selected);
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
+  if (!lastUser) return selected;
+  return pickCapableModel(collectMediaKinds([lastUser]), catalog, selected);
 }
 
 export function mediaSwitchLabel(kinds: MediaKind[]) {
@@ -186,6 +220,36 @@ export function mediaSwitchLabel(kinds: MediaKind[]) {
   if (kinds.includes("image")) return "les images";
   if (kinds.includes("pdf")) return "les PDF";
   return "ce fichier";
+}
+
+export function mediaFilterLabel(kind: MediaKind) {
+  if (kind === "image") return "Images";
+  if (kind === "audio") return "Audio";
+  if (kind === "video") return "Vidéo";
+  return "PDF";
+}
+
+export function suggestMediaModel(
+  kind: MediaKind,
+  catalog: CatalogModel[] = FEATURED_MODELS,
+) {
+  return pickCapableModel([kind], catalog, MEDIA_MODEL);
+}
+
+export function capabilityHint(
+  kind: MediaKind,
+  catalog: CatalogModel[] = FEATURED_MODELS,
+) {
+  const suggestedId = suggestMediaModel(kind, catalog);
+  const suggestedLabel = getModelLabel(suggestedId, catalog);
+  const filterLabel = mediaFilterLabel(kind);
+  return {
+    suggestedId,
+    suggestedLabel,
+    filterLabel,
+    shortText: `Pour ${mediaSwitchLabel([kind])}, filtre « ${filterLabel} » dans le sélecteur, par exemple ${suggestedLabel}.`,
+    text: `Ce modèle ne gère pas ${mediaSwitchLabel([kind])}. Ouvre le sélecteur, filtre « ${filterLabel} », et choisis par exemple ${suggestedLabel}. Ensuite renvoie ta demande.`,
+  };
 }
 
 export function modelMediaLabel(
@@ -205,6 +269,10 @@ export function modelMediaLabel(
 }
 
 export function getOpenRouterProviderOptions(modelId: string) {
+  if (isFreeModel(modelId)) {
+    return { allow_fallbacks: true, data_collection: "allow" as const };
+  }
+
   const options: {
     zdr: true;
     data_collection: "deny";
