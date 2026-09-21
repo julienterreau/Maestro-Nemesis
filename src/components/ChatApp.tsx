@@ -1,11 +1,10 @@
 "use client";
 
-import { MenuIcon, SettingsIcon } from "lucide-react";
+import { Loader2Icon, MenuIcon, SettingsIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UIMessage } from "ai";
 import { toast } from "sonner";
-import { ChatLoading } from "@/components/ChatLoading";
 import { ChatPanel } from "@/components/ChatPanel";
 import { Sidebar } from "@/components/Sidebar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -13,28 +12,14 @@ import { VENICE_MODEL } from "@/lib/models";
 import { useChatStore } from "@/stores/chat-store";
 
 export function ChatApp() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return <ChatLoading />;
-  }
-
-  return <ChatAppReady />;
-}
-
-function ChatAppReady() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const persistTimer = useRef<number | null>(null);
   const {
     conversations,
     activeId,
-    loading,
     configured,
     load,
+    loadLatest,
     create,
     select,
     remove,
@@ -52,6 +37,16 @@ function ChatAppReady() {
     });
   }, [load]);
 
+  const active = useMemo(
+    () => conversations.find((conversation) => conversation.id === activeId),
+    [conversations, activeId],
+  );
+
+  useEffect(() => {
+    if (!active || active.loaded) return;
+    void loadLatest(active.id);
+  }, [active, loadLatest]);
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -59,14 +54,13 @@ function ChatAppReady() {
     };
   }, []);
 
-  const active = useMemo(
-    () => conversations.find((conversation) => conversation.id === activeId),
-    [conversations, activeId],
-  );
-
   const handleMessagesChange = useCallback(
     (messages: UIMessage[]) => {
       if (!activeId) return;
+      const current = useChatStore
+        .getState()
+        .conversations.find((item) => item.id === activeId);
+      if (!current?.loaded) return;
       setMessages(activeId, messages);
       if (persistTimer.current) window.clearTimeout(persistTimer.current);
       persistTimer.current = window.setTimeout(() => {
@@ -75,10 +69,6 @@ function ChatAppReady() {
     },
     [activeId, persist, setMessages],
   );
-
-  if (loading) {
-    return <ChatLoading />;
-  }
 
   const statusLabel =
     configured === false
@@ -146,8 +136,13 @@ function ChatAppReady() {
             onPluginChange={setPlugin}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-            Ouvrez le menu pour créer une conversation.
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 items-center justify-center">
+              <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+            </div>
+            <div className="mx-auto w-full max-w-3xl px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
+              <div className="h-16 rounded-3xl border bg-card/60" />
+            </div>
           </div>
         )}
       </div>

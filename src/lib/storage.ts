@@ -11,6 +11,8 @@ export function createConversation(model = DEFAULT_MODEL): Conversation {
     model,
     messages: [],
     updatedAt: Date.now(),
+    loaded: true,
+    hasOlder: false,
   };
 }
 
@@ -74,6 +76,8 @@ export function loadConversations(): Conversation[] {
                 .filter((message): message is UIMessage => message !== null)
             : [],
           updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : Date.now(),
+          loaded: true as boolean,
+          hasOlder: false as boolean,
         } satisfies Conversation;
       })
       .filter((conversation): conversation is Conversation => conversation !== null)

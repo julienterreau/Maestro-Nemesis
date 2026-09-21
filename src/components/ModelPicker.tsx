@@ -1,16 +1,17 @@
 "use client";
 
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
-  FEATURED_MODELS,
+  PINNED_MODELS,
   type CatalogModel,
   type MediaKind,
   findCatalogModel,
   isFreeModel,
   modelMediaLabel,
 } from "@/lib/models";
+import { useChatStore } from "@/stores/chat-store";
 
 type CatalogFilter = "all" | "free" | MediaKind;
 
@@ -38,9 +39,13 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<CatalogFilter>("all");
+  const ensureCatalog = useChatStore((state) => state.ensureCatalog);
+  const catalogLoading = useChatStore((state) => state.catalogLoading);
   const rootRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
-  const catalog = models.length > 0 ? models : FEATURED_MODELS;
+  const needle = query.trim();
+  const searching = needle.length > 0;
+  const catalog = models.length > 0 ? models : PINNED_MODELS;
   const current = findCatalogModel(model, catalog) ?? {
     id: model,
     name: model,
@@ -53,7 +58,12 @@ export function ModelPicker({
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    let list = catalog.filter((item) => {
+    const source = !needle
+      ? PINNED_MODELS.map(
+          (pinned) => catalog.find((item) => item.id === pinned.id) ?? pinned,
+        )
+      : catalog;
+    let list = source.filter((item) => {
       if (filter === "free" && !isFreeModel(item.id)) return false;
       if (filter === "image" && !item.image) return false;
       if (filter === "audio" && !item.audio) return false;
@@ -86,12 +96,18 @@ export function ModelPicker({
     activeRef.current?.scrollIntoView({ block: "nearest" });
   }, [open, model, preferMedia]);
 
-  const countLabel =
-    filter === "all"
-      ? `${catalog.length} modèles`
-      : filter === "free"
-        ? `${filtered.length} modèles gratuits`
-        : `${filtered.length} modèles ${FILTERS.find((item) => item.id === filter)?.label.toLowerCase()}`;
+  useEffect(() => {
+    if (!open || !searching) return;
+    void ensureCatalog();
+  }, [open, searching, ensureCatalog]);
+
+  const countLabel = searching
+    ? catalogLoading
+      ? "Recherche dans OpenRouter…"
+      : `${filtered.length} modèles`
+    : filter === "free"
+      ? `${filtered.length} modèles gratuits · tape pour chercher`
+      : `${filtered.length} modèles · tape pour chercher`;
 
   return (
     <div ref={rootRef} className="relative min-w-0">
@@ -112,13 +128,30 @@ export function ModelPicker({
 
       {open ? (
         <div className="absolute bottom-full left-0 z-50 mb-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border bg-popover p-2 shadow-lg">
-          <Input
-            autoFocus
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher un modèle OpenRouter…"
-            className="mb-2"
-          />
+          <div className="relative mb-2">
+            <Input
+              autoFocus
+              value={query}
+              onChange={(event) => {
+                const next = event.target.value;
+                setQuery(next);
+                if (next.trim()) void ensureCatalog();
+              }}
+              placeholder={
+                filter === "image"
+                  ? "Chercher un modèle image…"
+                  : filter === "audio"
+                    ? "Chercher un modèle audio…"
+                    : filter === "video"
+                      ? "Chercher un modèle vidéo…"
+                      : "Tape pour chercher dans tout OpenRouter…"
+              }
+              className="pr-9"
+            />
+            {searching && catalogLoading ? (
+              <Loader2Icon className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            ) : null}
+          </div>
           <div className="mb-2 flex flex-wrap items-center gap-1 px-1">
             {FILTERS.map((item) => {
               const active = filter === item.id;
@@ -142,7 +175,14 @@ export function ModelPicker({
             {countLabel}
           </p>
           <div className="max-h-72 overflow-y-auto">
-            {filtered.length === 0 ? (
+            {searching && catalogLoading ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-10">
+                <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">
+                  Chargement des modèles…
+                </p>
+              </div>
+            ) : filtered.length === 0 ? (
               <p className="px-2 py-3 text-xs text-muted-foreground">
                 Aucun modèle trouvé.
               </p>

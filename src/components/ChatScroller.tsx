@@ -1,18 +1,26 @@
 "use client";
 
-import { ArrowDownIcon } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowDownIcon, Loader2Icon } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 const NEAR_BOTTOM_PX = 96;
+const NEAR_TOP_PX = 80;
 
 export function ChatScroller({
   children,
   follow,
+  hasOlder,
+  loadingOlder,
+  onLoadOlder,
 }: {
   children: ReactNode;
   follow?: boolean;
+  hasOlder?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => Promise<void> | void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const preserveRef = useRef<{ height: number; top: number } | null>(null);
   const [showJump, setShowJump] = useState(false);
 
   function nearBottom() {
@@ -28,9 +36,18 @@ export function ChatScroller({
     setShowJump(false);
   }
 
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    const preserved = preserveRef.current;
+    if (!el || !preserved || loadingOlder) return;
+    el.scrollTop = preserved.top + (el.scrollHeight - preserved.height);
+    preserveRef.current = null;
+  }, [children, loadingOlder]);
+
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
+    if (preserveRef.current) return;
     if (follow || nearBottom()) {
       el.scrollTop = el.scrollHeight;
       setShowJump(false);
@@ -39,14 +56,53 @@ export function ChatScroller({
     }
   }, [children, follow]);
 
+  async function handleScroll() {
+    const el = viewportRef.current;
+    if (!el) return;
+    setShowJump(!nearBottom());
+    if (
+      el.scrollTop < NEAR_TOP_PX &&
+      hasOlder &&
+      !loadingOlder &&
+      onLoadOlder
+    ) {
+      preserveRef.current = { height: el.scrollHeight, top: el.scrollTop };
+      await onLoadOlder();
+    }
+  }
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         ref={viewportRef}
-        onScroll={() => setShowJump(!nearBottom())}
+        onScroll={() => void handleScroll()}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:auto]"
       >
         <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-4">
+          {hasOlder || loadingOlder ? (
+            <div className="flex justify-center py-1">
+              {loadingOlder ? (
+                <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    const el = viewportRef.current;
+                    if (el) {
+                      preserveRef.current = {
+                        height: el.scrollHeight,
+                        top: el.scrollTop,
+                      };
+                    }
+                    void onLoadOlder?.();
+                  }}
+                >
+                  Voir les messages plus anciens
+                </button>
+              )}
+            </div>
+          ) : null}
           {children}
         </div>
       </div>

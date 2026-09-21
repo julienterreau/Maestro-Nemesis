@@ -6,6 +6,8 @@ export type Conversation = {
   model: string;
   messages: UIMessage[];
   updatedAt: number;
+  loaded: boolean;
+  hasOlder: boolean;
 };
 
 export function getMessageText(message: UIMessage) {

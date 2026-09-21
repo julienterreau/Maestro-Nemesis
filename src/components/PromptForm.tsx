@@ -12,7 +12,7 @@ import {
   isVideoGenerationPrompt,
 } from "@/lib/prompt-intent";
 import {
-  FEATURED_MODELS,
+  PINNED_MODELS,
   capabilityHint,
   collectMediaKinds,
   guessMediaType,
@@ -89,7 +89,7 @@ export function PromptForm({
   disabled,
   onSubmit,
   onStop,
-  models = FEATURED_MODELS,
+  models = PINNED_MODELS,
   plugins,
   onPluginChange,
 }: PromptFormProps) {
@@ -204,6 +204,7 @@ export function PromptForm({
               type="button"
               size="icon-sm"
               variant="ghost"
+              className="cursor-pointer disabled:cursor-not-allowed"
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}
               aria-label="Ajouter un fichier"
@@ -228,6 +229,7 @@ export function PromptForm({
               type="button"
               size="icon-sm"
               variant="secondary"
+              className="cursor-pointer"
               onClick={onStop}
               aria-label="Arrêter"
             >
@@ -238,6 +240,7 @@ export function PromptForm({
               type="submit"
               size="icon-sm"
               variant="default"
+              className="cursor-pointer disabled:cursor-not-allowed"
               disabled={disabled || (!input.trim() && files.length === 0)}
               aria-label="Envoyer"
             >

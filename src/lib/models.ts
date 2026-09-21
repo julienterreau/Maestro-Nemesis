@@ -1,7 +1,6 @@
 export const VENICE_MODEL =
   "cognitivecomputations/dolphin-mistral-24b-venice-edition";
 
-export const FREE_CHAT_MODEL = "openrouter/free";
 export const DEFAULT_MODEL = VENICE_MODEL;
 
 export const MEDIA_MODEL = "google/gemini-2.5-flash";
@@ -27,15 +26,6 @@ export const FEATURED_MODELS: CatalogModel[] = [
     name: "Uncensored (0 rétention)",
     provider: "Venice",
     image: false,
-    audio: false,
-    video: false,
-    pdf: false,
-  },
-  {
-    id: "openrouter/free",
-    name: "Free Models Router",
-    provider: "OpenRouter",
-    image: true,
     audio: false,
     video: false,
     pdf: false,
@@ -105,7 +95,180 @@ export const FEATURED_MODELS: CatalogModel[] = [
   },
 ];
 
+const TEXT_ONLY = {
+  image: false,
+  audio: false,
+  video: false,
+  pdf: false,
+} as const;
+
+/** Free chat models shown in the Gratuit filter, in OpenRouter popularity order. */
+export const FREE_MODELS: CatalogModel[] = [
+  {
+    id: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    name: "Nemotron 3 Ultra",
+    provider: "Nvidia",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "poolside/laguna-s-2.1:free",
+    name: "Laguna S 2.1",
+    provider: "Poolside",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "inclusionai/ling-3.0-flash-fin:free",
+    name: "Ling 3.0 Flash Fin",
+    provider: "inclusionAI",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "nvidia/nemotron-3.5-lightning:free",
+    name: "Nemotron 3.5 Lightning",
+    provider: "Nvidia",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "dots-studio/dots-3-note-preview:free",
+    name: "Dots3-Note Preview",
+    provider: "Dots Studio",
+    image: true,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "inclusionai/ling-3.0-flash-vl:free",
+    name: "Ling 3.0 Flash VL",
+    provider: "inclusionAI",
+    image: true,
+    audio: false,
+    video: true,
+    pdf: false,
+  },
+  {
+    id: "nex-agi/nex-n2.5-pro:free",
+    name: "Nex-N2.5-Pro",
+    provider: "Nex AGI",
+    image: true,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "thinkingmachines/inkling:free",
+    name: "Inkling",
+    provider: "Thinking Machines",
+    image: true,
+    audio: true,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b-a12b:free",
+    name: "Nemotron 3 Super",
+    provider: "Nvidia",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "inclusionai/ling-3.0-flash-sante:free",
+    name: "Ling 3.0 Flash Sante",
+    provider: "inclusionAI",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "thinkingmachines/inkling-small:free",
+    name: "Inkling Small",
+    provider: "Thinking Machines",
+    image: true,
+    audio: true,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "cohere/north-mini-code:free",
+    name: "North Mini Code",
+    provider: "Cohere",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "nex-agi/nex-n2.5-mini:free",
+    name: "Nex-N2.5-Mini",
+    provider: "Nex AGI",
+    image: true,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "poolside/laguna-xs-2.1:free",
+    name: "Laguna XS 2.1",
+    provider: "Poolside",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    name: "Nemotron 3 Nano Omni",
+    provider: "Nvidia",
+    image: true,
+    audio: true,
+    video: true,
+    pdf: false,
+  },
+  {
+    id: "liquid/lfm-2.5-2.6b:free",
+    name: "LFM2.5-2.6B",
+    provider: "Liquid",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "qwen/qwen3.8-27b:free",
+    name: "Qwen3.8 27B",
+    provider: "Qwen",
+    image: true,
+    audio: false,
+    video: true,
+    pdf: false,
+  },
+  {
+    id: "z-ai/glm-5.2:free",
+    name: "GLM 5.2",
+    provider: "Z.ai",
+    ...TEXT_ONLY,
+  },
+  {
+    id: "nvidia/nemotron-3.5-content-safety:free",
+    name: "Nemotron 3.5 Content Safety",
+    provider: "Nvidia",
+    image: true,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+  {
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Gemma 4 26B A4B",
+    provider: "Google",
+    image: true,
+    audio: false,
+    video: true,
+    pdf: false,
+  },
+  {
+    id: "google/gemma-4-31b-it:free",
+    name: "Gemma 4 31B",
+    provider: "Google",
+    image: true,
+    audio: false,
+    video: true,
+    pdf: false,
+  },
+];
+
+const FREE_MODEL_IDS = new Set(FREE_MODELS.map((model) => model.id));
+
 export const MODELS = FEATURED_MODELS;
+export const PINNED_MODELS = [...FEATURED_MODELS, ...FREE_MODELS];
 
 type MessageLike = {
   role?: string;
@@ -117,7 +280,7 @@ export function isModelId(id: string) {
 }
 
 export function isFreeModel(id: string) {
-  return id === FREE_CHAT_MODEL || id.endsWith(":free");
+  return FREE_MODEL_IDS.has(id);
 }
 
 export function isModelAllowed(id: string) {
@@ -135,7 +298,11 @@ export function capabilitiesFromModalities(modalities: string[]) {
 }
 
 export function findCatalogModel(id: string, catalog: CatalogModel[] = FEATURED_MODELS) {
-  return catalog.find((model) => model.id === id) ?? FEATURED_MODELS.find((model) => model.id === id);
+  return (
+    catalog.find((model) => model.id === id) ??
+    FEATURED_MODELS.find((model) => model.id === id) ??
+    FREE_MODELS.find((model) => model.id === id)
+  );
 }
 
 export function getModelLabel(id: string, catalog: CatalogModel[] = FEATURED_MODELS) {

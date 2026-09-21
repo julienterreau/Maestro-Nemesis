@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useRef, useState } from "react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
+import { Loader2Icon } from "lucide-react";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatScroller } from "@/components/ChatScroller";
 import { ImageSkeleton } from "@/components/GeneratedImage";
@@ -17,7 +18,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
-  FEATURED_MODELS,
+  PINNED_MODELS,
   capabilityHint,
   collectMediaKinds,
   modelSupportsMedia,
@@ -33,6 +34,7 @@ import type { RouterPlugins } from "@/lib/openrouter-plugins";
 import type { Conversation } from "@/lib/types";
 import { readApiJson } from "@/lib/api-json";
 import { getMessageText } from "@/lib/types";
+import { useChatStore } from "@/stores/chat-store";
 import { toast } from "sonner";
 
 const SUGGESTIONS = [
@@ -73,7 +75,7 @@ export function ChatPanel({
   configured,
   onModelChange,
   onMessagesChange,
-  models = FEATURED_MODELS,
+  models = PINNED_MODELS,
   plugins,
   onPluginChange,
 }: {
@@ -94,17 +96,70 @@ export function ChatPanel({
     }),
   });
   const synced = useRef("");
+  const [ready, setReady] = useState(false);
+  const [hasOlder, setHasOlder] = useState(conversation.hasOlder);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const setHasOlderStore = useChatStore((state) => state.setHasOlder);
   const [mediaBusy, setMediaBusy] = useState<null | "son" | "image" | "video">(
     null,
   );
   const isBusy = status === "submitted" || status === "streaming" || Boolean(mediaBusy);
 
   useEffect(() => {
-    const next = JSON.stringify(messages);
+    if (!conversation.loaded) {
+      if (ready) setReady(false);
+      return;
+    }
+    if (ready) return;
+    setHasOlder(conversation.hasOlder);
+    setMessages(conversation.messages);
+    setReady(true);
+  }, [
+    conversation.loaded,
+    conversation.hasOlder,
+    conversation.messages,
+    ready,
+    setMessages,
+  ]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const last = messages.at(-1);
+    const next = `${messages.length}:${messages[0]?.id ?? ""}:${last?.id ?? ""}:${last ? getMessageText(last) : ""}`;
     if (next === synced.current) return;
+    const isHydrate = synced.current === "";
     synced.current = next;
+    if (isHydrate) return;
     onMessagesChange(messages);
-  }, [messages, onMessagesChange]);
+  }, [messages, onMessagesChange, ready]);
+
+  async function loadOlder() {
+    const first = messages[0];
+    if (!first || !hasOlder || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await readApiJson<{
+        messages?: UIMessage[];
+        hasMore?: boolean;
+        error?: string;
+      }>(
+        await fetch(
+          `/api/conversations/${conversation.id}?before=${encodeURIComponent(first.id)}`,
+        ),
+      );
+      const older = (page.messages ?? []).filter(
+        (message) => !messages.some((item) => item.id === message.id),
+      );
+      if (older.length > 0) {
+        setMessages([...older, ...messages]);
+      }
+      const nextHasOlder = Boolean(page.hasMore);
+      setHasOlder(nextHasOlder);
+      setHasOlderStore(conversation.id, nextHasOlder);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   function suggestMedia(kind: MediaKind, prompt: string) {
     const hint = capabilityHint(kind, models);
@@ -413,7 +468,11 @@ export function ChatPanel({
 
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {messages.length === 0 ? (
+      {!conversation.loaded || !ready ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : messages.length === 0 ? (
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-6">
           <Empty className="max-w-lg border-none p-0 text-center sm:p-8">
             <EmptyHeader className="items-center text-center">
@@ -440,7 +499,12 @@ export function ChatPanel({
           </Empty>
         </div>
       ) : (
-        <ChatScroller follow={isBusy}>
+        <ChatScroller
+          follow={isBusy}
+          hasOlder={hasOlder}
+          loadingOlder={loadingOlder}
+          onLoadOlder={loadOlder}
+        >
           {messages.map((message, index) => (
             <ChatMessage
               key={message.id}
@@ -486,7 +550,7 @@ export function ChatPanel({
           model={conversation.model}
           onModelChange={onModelChange}
           isBusy={isBusy}
-          disabled={configured === false}
+          disabled={configured === false || !conversation.loaded || !ready}
           onSubmit={submitPrompt}
           onStop={() => stop()}
           models={models}

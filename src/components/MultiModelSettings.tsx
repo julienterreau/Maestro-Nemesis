@@ -62,7 +62,7 @@ export function MultiModelSettings({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-8 items-center gap-1 rounded-xl px-2 text-xs text-muted-foreground outline-none hover:bg-muted disabled:opacity-50"
+        className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-xl px-2 text-xs text-muted-foreground outline-none hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
         aria-expanded={open}
         aria-label="Options multi-modèles"
       >
@@ -101,7 +101,7 @@ export function MultiModelSettings({
                   aria-checked={plugins[option.key]}
                   disabled={disabled}
                   onClick={() => onChange(option.key, !plugins[option.key])}
-                  className={`mt-0.5 h-6 w-10 shrink-0 rounded-full transition-colors ${
+                  className={`mt-0.5 h-6 w-10 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed ${
                     plugins[option.key] ? "bg-lime-400" : "bg-muted"
                   }`}
                 >

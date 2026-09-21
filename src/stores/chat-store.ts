@@ -2,7 +2,7 @@
 
 import type { UIMessage } from "ai";
 import { create } from "zustand";
-import { DEFAULT_MODEL, FEATURED_MODELS, type CatalogModel } from "@/lib/models";
+import { DEFAULT_MODEL, PINNED_MODELS, type CatalogModel } from "@/lib/models";
 import {
   DEFAULT_PLUGINS,
   parseRouterPlugins,
@@ -27,19 +27,37 @@ type ChatStore = {
   loading: boolean;
   configured: boolean | null;
   models: CatalogModel[];
+  catalogFull: boolean;
+  catalogLoading: boolean;
   plugins: RouterPlugins;
   load: () => Promise<void>;
+  loadLatest: (id: string) => Promise<void>;
+  ensureCatalog: () => Promise<void>;
   create: () => Promise<void>;
   select: (id: string) => void;
   remove: (id: string) => Promise<void>;
   setModel: (id: string, model: string) => Promise<void>;
   setPlugin: (key: keyof RouterPlugins, value: boolean) => void;
   setMessages: (id: string, messages: UIMessage[]) => void;
+  setHasOlder: (id: string, hasOlder: boolean) => void;
   persist: (id: string) => Promise<void>;
 };
 
+const latestInflight = new Set<string>();
+
 async function parseJson<T>(response: Response): Promise<T> {
-  const data = (await response.json()) as T & { error?: string };
+  const text = await response.text();
+  if (!text.trim()) {
+    throw new Error(
+      response.ok ? "Réponse vide du serveur." : `Erreur ${response.status}`,
+    );
+  }
+  let data: T & { error?: string };
+  try {
+    data = JSON.parse(text) as T & { error?: string };
+  } catch {
+    throw new Error("Réponse serveur invalide.");
+  }
   if (!response.ok) {
     throw new Error(data.error ?? "Erreur API");
   }
@@ -49,9 +67,11 @@ async function parseJson<T>(response: Response): Promise<T> {
 export const useChatStore = create<ChatStore>((set, get) => ({
   conversations: [],
   activeId: "",
-  loading: true,
+  loading: false,
   configured: null,
-  models: FEATURED_MODELS,
+  models: PINNED_MODELS,
+  catalogFull: false,
+  catalogLoading: false,
   plugins: DEFAULT_PLUGINS,
   setPlugin: (key, value) => {
     const plugins = { ...get().plugins, [key]: value };
@@ -59,30 +79,76 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     window.localStorage.setItem(PLUGINS_KEY, JSON.stringify(plugins));
   },
   load: async () => {
-    set({ loading: true });
     try {
-      const [conversations, chat, catalog] = await Promise.all([
+      const [conversations, chat] = await Promise.all([
         parseJson<{ conversations: Conversation[] }>(
           await fetch("/api/conversations"),
         ),
         parseJson<{ configured: boolean }>(await fetch("/api/chat")),
-        parseJson<{ models: CatalogModel[] }>(await fetch("/api/models")).catch(
-          () => ({ models: FEATURED_MODELS }),
-        ),
       ]);
 
       const list = conversations.conversations;
+      const previous = get().conversations;
+      const merged = list.map((item) => {
+        const current = previous.find((entry) => entry.id === item.id);
+        return current?.loaded ? current : item;
+      });
       set({
-        conversations: list,
-        activeId: list[0]?.id ?? "",
+        conversations: merged,
+        activeId: get().activeId || merged[0]?.id || "",
         configured: chat.configured,
-        models: catalog.models.length > 0 ? catalog.models : FEATURED_MODELS,
         plugins: loadPlugins(),
         loading: false,
       });
     } catch {
       set({ loading: false });
       throw new Error("Impossible de charger les conversations.");
+    }
+  },
+  loadLatest: async (id) => {
+    const current = get().conversations.find((item) => item.id === id);
+    if (!current || current.loaded || latestInflight.has(id)) return;
+    latestInflight.add(id);
+    try {
+      const page = await parseJson<{ messages: UIMessage[]; hasMore: boolean }>(
+        await fetch(`/api/conversations/${id}`),
+      );
+      set((state) => ({
+        conversations: state.conversations.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                messages: page.messages ?? [],
+                loaded: true,
+                hasOlder: Boolean(page.hasMore),
+              }
+            : item,
+        ),
+      }));
+    } catch {
+      set((state) => ({
+        conversations: state.conversations.map((item) =>
+          item.id === id ? { ...item, loaded: true, hasOlder: false } : item,
+        ),
+      }));
+    } finally {
+      latestInflight.delete(id);
+    }
+  },
+  ensureCatalog: async () => {
+    if (get().catalogFull || get().catalogLoading) return;
+    set({ catalogLoading: true });
+    try {
+      const catalog = await parseJson<{ models: CatalogModel[] }>(
+        await fetch("/api/models?full=1"),
+      );
+      if (catalog.models.length > 0) {
+        set({ models: catalog.models, catalogFull: true, catalogLoading: false });
+      } else {
+        set({ catalogFull: true, catalogLoading: false });
+      }
+    } catch {
+      set({ catalogLoading: false });
     }
   },
   create: async () => {
@@ -132,24 +198,34 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setMessages: (id, messages) => {
     set((state) => ({
       conversations: state.conversations.map((item) =>
-        item.id === id
-          ? { ...item, messages, updatedAt: Date.now() }
-          : item,
+        item.id === id ? { ...item, messages, updatedAt: Date.now() } : item,
+      ),
+    }));
+  },
+  setHasOlder: (id, hasOlder) => {
+    set((state) => ({
+      conversations: state.conversations.map((item) =>
+        item.id === id ? { ...item, hasOlder } : item,
       ),
     }));
   },
   persist: async (id) => {
     const conversation = get().conversations.find((item) => item.id === id);
-    if (!conversation) return;
-    await parseJson(
-      await fetch(`/api/conversations/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: conversation.messages,
-          model: conversation.model,
+    if (!conversation?.loaded) return;
+    if (conversation.messages.length === 0) return;
+    try {
+      await parseJson(
+        await fetch(`/api/conversations/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: conversation.messages,
+            model: conversation.model,
+          }),
         }),
-      }),
-    );
+      );
+    } catch {
+      // La persistance se retentera au prochain changement.
+    }
   },
 }));
