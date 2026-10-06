@@ -130,6 +130,12 @@ function forLanguageModel(messages: UIMessage[]): UIMessage[] {
 
 function publicChatError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
+  if (/insufficient credits|never purchased credits|payment required|402/i.test(message)) {
+    return "Pas de crédits OpenRouter. Venice est payant. Passe sur un modèle Gratuit (:free) après avoir désactivé le ZDR dans OpenRouter.";
+  }
+  if (/zdr|data policy|guardrail|0 endpoints/i.test(message)) {
+    return "Ce modèle gratuit est bloqué par le zéro rétention. Désactive ZDR : https://openrouter.ai/workspaces/default/guardrails et https://openrouter.ai/settings/privacy";
+  }
   if (/image input/i.test(message)) {
     return "Ce modèle ne lit pas les images. Choisis un modèle gratuit marqué images.";
   }

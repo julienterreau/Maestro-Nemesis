@@ -14,7 +14,7 @@ export const MUSIC_MODELS = [
 
 export function publicAudioError(message: string) {
   if (/insufficient credits|never purchased credits|payment required|402/i.test(message)) {
-    return "Pas de crédits OpenRouter. Les modèles voix, musique, image et vidéo restent payants côté OpenRouter.";
+    return "Pas de crédits OpenRouter. Venice et la génération média sont payants. Pour le chat gratuit, choisis un modèle :free et désactive le ZDR.";
   }
   if (/no endpoints found/i.test(message)) {
     return "Aucun endpoint image n’est dispo pour ce modèle (retiré, ou bloqué par Privacy OpenRouter). Réessaie, on bascule sur un autre modèle.";

@@ -199,7 +199,7 @@ export const FEATURED_MODELS: CatalogModel[] = [
 ];
 export const PINNED_MODELS = [...FEATURED_MODELS, ...FREE_MODELS];
 export const MODELS = PINNED_MODELS;
-export const DEFAULT_MODEL = VENICE_MODEL;
+export const DEFAULT_MODEL = FREE_MODELS[0].id;
 export const MEDIA_MODEL =
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
 export const VISION_MODEL = MEDIA_MODEL;

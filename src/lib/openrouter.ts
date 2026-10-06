@@ -1,5 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { VENICE_MODEL, getOpenRouterProviderOptions } from "@/lib/models";
+import { getOpenRouterProviderOptions } from "@/lib/models";
 import {
   buildOpenRouterTools,
   hasEnabledPlugin,
@@ -20,11 +20,10 @@ export function getOpenRouter(modelId: string, plugins?: RouterPlugins) {
     },
     fetch: async (input, init) => {
       const nextInit = { ...init };
-      let payload: Record<string, unknown> | null = null;
 
       if (typeof nextInit.body === "string") {
         try {
-          payload = JSON.parse(nextInit.body) as Record<string, unknown>;
+          const payload = JSON.parse(nextInit.body) as Record<string, unknown>;
           payload.model = modelId;
           payload.provider = getOpenRouterProviderOptions(modelId);
 
@@ -35,30 +34,11 @@ export function getOpenRouter(modelId: string, plugins?: RouterPlugins) {
 
           nextInit.body = JSON.stringify(payload);
         } catch {
-          payload = null;
+          // Keep the original body if it is not JSON.
         }
       }
 
-      const response = await fetch(input, nextInit);
-      if (response.ok || modelId === VENICE_MODEL || !payload) {
-        return response;
-      }
-
-      const text = await response.text();
-      if (!/zdr|guardrail|data policy|0 endpoints/i.test(text)) {
-        return new Response(text, {
-          status: response.status,
-          headers: response.headers,
-        });
-      }
-
-      payload.model = VENICE_MODEL;
-      payload.provider = getOpenRouterProviderOptions(VENICE_MODEL);
-      delete payload.tools;
-      return fetch(input, {
-        ...nextInit,
-        body: JSON.stringify(payload),
-      });
+      return fetch(input, nextInit);
     },
   });
 }
