@@ -90,7 +90,7 @@ async function generateWithModel(model: string, prompt: string) {
     body: JSON.stringify({
       model,
       prompt,
-      provider: { allow_fallbacks: true },
+      provider: { allow_fallbacks: true, data_collection: "allow" },
     }),
   });
   const imagesBody = await readJson(imagesResponse);
@@ -108,6 +108,7 @@ async function generateWithModel(model: string, prompt: string) {
         model,
         messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"],
+        provider: { allow_fallbacks: true, data_collection: "allow" },
       }),
     },
   );

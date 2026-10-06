@@ -37,6 +37,7 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: z.string().min(16),
     BETTER_AUTH_URL: z.string().url().optional(),
     OPENROUTER_API_KEY: z.string().optional(),
+    OPENROUTER_MANAGEMENT_KEY: z.string().optional(),
     OPENROUTER_SITE_URL: z.string().optional(),
     OPENROUTER_SITE_NAME: z.string().optional(),
     RESEND_API_KEY: z.string().min(1),

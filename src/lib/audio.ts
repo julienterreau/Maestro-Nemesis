@@ -1,4 +1,5 @@
 import { createAttachmentRecord, fileUrl } from "@/lib/files";
+import { zdrGuardrailHelp } from "@/lib/openrouter-guardrails";
 
 export const TTS_MODELS = [
   { model: "openai/gpt-4o-mini-tts-2025-12-15", voice: "alloy" },
@@ -13,7 +14,7 @@ export const MUSIC_MODELS = [
 
 export function publicAudioError(message: string) {
   if (/insufficient credits|never purchased credits|payment required|402/i.test(message)) {
-    return "Pas de crédits OpenRouter. Recharge sur openrouter.ai/settings/credits — Gemini, images et vidéos sont payants.";
+    return "Pas de crédits OpenRouter. Les modèles voix, musique, image et vidéo restent payants côté OpenRouter.";
   }
   if (/no endpoints found/i.test(message)) {
     return "Aucun endpoint image n’est dispo pour ce modèle (retiré, ou bloqué par Privacy OpenRouter). Réessaie, on bascule sur un autre modèle.";
@@ -21,8 +22,8 @@ export function publicAudioError(message: string) {
   if (/user not found/i.test(message)) {
     return "Clé OpenRouter invalide (souvent une management key). Crée une clé API modèles sur openrouter.ai/settings/keys, mets-la dans .env.local, puis relance le serveur.";
   }
-  if (/zero data retention|zdr|data policy/i.test(message)) {
-    return "Les modèles voix et musique n’offrent pas le zéro rétention. Autorise la collecte sur openrouter.ai/settings/privacy, uniquement pour l’audio.";
+  if (/zero data retention|zdr|data policy|guardrail/i.test(message)) {
+    return zdrGuardrailHelp();
   }
   if (/stream\s*:\strue/i.test(message)) {
     return "Le modèle audio exige un flux. Réessaie, c’est maintenant activé côté serveur.";

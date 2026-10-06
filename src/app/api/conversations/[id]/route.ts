@@ -6,7 +6,7 @@ import {
   parseMessagePageLimit,
   upsertConversationMessages,
 } from "@/lib/conversation";
-import { isModelId } from "@/lib/models";
+import { isModelAllowed } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -57,11 +57,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       id,
       session.user.id,
       body.messages,
-      typeof body.model === "string" && isModelId(body.model)
+      typeof body.model === "string" && isModelAllowed(body.model)
         ? body.model
         : existing.model,
     );
-  } else if (typeof body.model === "string" && isModelId(body.model)) {
+  } else if (typeof body.model === "string" && isModelAllowed(body.model)) {
     await prisma.conversation.update({
       where: { id },
       data: { model: body.model },

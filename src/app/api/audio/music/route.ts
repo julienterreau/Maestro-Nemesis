@@ -14,6 +14,7 @@ import {
   toSoundEffectPrompt,
 } from "@/lib/audio-prompt";
 import { synthesizeSoundscape } from "@/lib/soundscape";
+import { relaxOpenRouterZdr } from "@/lib/openrouter-guardrails";
 import { musicSchema } from "@/lib/validations";
 
 export const maxDuration = 60;
@@ -57,6 +58,8 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+
+  await relaxOpenRouterZdr();
 
   const prompt = parsed.data.lyrics
     ? `${parsed.data.prompt}\n\nParoles :\n${parsed.data.lyrics}`

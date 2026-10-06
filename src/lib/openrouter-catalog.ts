@@ -102,7 +102,7 @@ async function fetchFullCatalog(): Promise<CatalogModel[]> {
     const byId = new Map<string, CatalogModel>();
     for (const model of PINNED_MODELS) byId.set(model.id, model);
     for (const model of remote) {
-      if (model.id.endsWith(":free") && !isFreeModel(model.id)) continue;
+      if (!isFreeModel(model.id)) continue;
       const pinned = byId.get(model.id);
       if (pinned && isFreeModel(model.id)) {
         byId.set(model.id, {

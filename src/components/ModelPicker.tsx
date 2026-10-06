@@ -107,7 +107,7 @@ export function ModelPicker({
       : `${filtered.length} modèles`
     : filter === "free"
       ? `${filtered.length} modèles gratuits · tape pour chercher`
-      : `${filtered.length} modèles · tape pour chercher`;
+      : `${filtered.length} modèles gratuits · tape pour chercher`;
 
   return (
     <div ref={rootRef} className="relative min-w-0">
@@ -139,12 +139,12 @@ export function ModelPicker({
               }}
               placeholder={
                 filter === "image"
-                  ? "Chercher un modèle image…"
+                  ? "Chercher un modèle image gratuit…"
                   : filter === "audio"
-                    ? "Chercher un modèle audio…"
+                    ? "Chercher un modèle audio gratuit…"
                     : filter === "video"
-                      ? "Chercher un modèle vidéo…"
-                      : "Tape pour chercher dans tout OpenRouter…"
+                      ? "Chercher un modèle vidéo gratuit…"
+                      : "Chercher un modèle gratuit…"
               }
               className="pr-9"
             />

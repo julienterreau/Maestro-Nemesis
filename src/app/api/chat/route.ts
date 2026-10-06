@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { getRequiredAdmin } from "@/lib/auth-user";
 import { attachmentIdFromUrl, loadAttachmentBytes } from "@/lib/files";
-import { DEFAULT_MODEL, isModelId } from "@/lib/models";
+import { DEFAULT_MODEL, isModelAllowed } from "@/lib/models";
 import { getOpenRouter } from "@/lib/openrouter";
 import { parseRouterPlugins } from "@/lib/openrouter-plugins";
 import { publicAudioError } from "@/lib/audio";
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
   }
 
   const messages = await hydrateFileParts(body.messages);
-  const modelId = isModelId(body.model ?? "") ? body.model! : DEFAULT_MODEL;
+  const modelId = isModelAllowed(body.model ?? "") ? body.model! : DEFAULT_MODEL;
   const plugins = parseRouterPlugins(body.plugins);
   const openrouter = getOpenRouter(modelId, plugins);
 
@@ -131,19 +131,19 @@ function forLanguageModel(messages: UIMessage[]): UIMessage[] {
 function publicChatError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   if (/image input/i.test(message)) {
-    return "Ce modèle ne lit pas les images. Passez sur GPT-4o, Claude ou Gemini.";
+    return "Ce modèle ne lit pas les images. Choisis un modèle gratuit marqué images.";
   }
   if (/audio input/i.test(message)) {
-    return "Ce modèle ne lit pas l’audio. Passez sur Gemini ou GPT-4o.";
+    return "Ce modèle ne lit pas l’audio. Choisis un modèle gratuit marqué audio.";
   }
   if (/file part media type video/i.test(message)) {
     return "La vidéo s’affiche dans le chat, mais ce modèle ne peut pas la lire en fichier. Pose ta question en texte.";
   }
   if (/video input/i.test(message)) {
-    return "Ce modèle ne lit pas la vidéo. Passez sur Gemini 2.5 Flash.";
+    return "Ce modèle ne lit pas la vidéo. Choisis un modèle gratuit marqué vidéo.";
   }
   if (/pdf|document/i.test(message) && /support|input|file/i.test(message)) {
-    return "Ce modèle ne lit pas les PDF. Passez sur Gemini, Claude ou GPT-4o.";
+    return "Ce modèle ne lit pas les PDF. Choisis un modèle gratuit qui les accepte.";
   }
   if (/DEPLOYMENT_NOT_FOUND|deployment could not be found/i.test(message)) {
     return "Le fichier n’est plus accessible depuis ce déploiement Vercel. Renvoie l’image.";

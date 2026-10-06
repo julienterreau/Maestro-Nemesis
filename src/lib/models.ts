@@ -1,10 +1,3 @@
-export const VENICE_MODEL =
-  "cognitivecomputations/dolphin-mistral-24b-venice-edition";
-
-export const DEFAULT_MODEL = VENICE_MODEL;
-
-export const MEDIA_MODEL = "google/gemini-2.5-flash";
-export const VISION_MODEL = MEDIA_MODEL;
 export const IMAGE_GEN_MODEL = "google/gemini-3.1-flash-image";
 export const VIDEO_GEN_MODEL = "bytedance/seedance-2.0";
 
@@ -19,81 +12,6 @@ export type CatalogModel = {
   video: boolean;
   pdf: boolean;
 };
-
-export const FEATURED_MODELS: CatalogModel[] = [
-  {
-    id: VENICE_MODEL,
-    name: "Uncensored (0 rétention)",
-    provider: "Venice",
-    image: false,
-    audio: false,
-    video: false,
-    pdf: false,
-  },
-  {
-    id: "openai/gpt-4o",
-    name: "GPT-4o",
-    provider: "OpenAI",
-    image: true,
-    audio: true,
-    video: false,
-    pdf: true,
-  },
-  {
-    id: "openai/gpt-4o-mini",
-    name: "GPT-4o Mini",
-    provider: "OpenAI",
-    image: true,
-    audio: false,
-    video: false,
-    pdf: false,
-  },
-  {
-    id: "anthropic/claude-sonnet-4",
-    name: "Claude Sonnet 4",
-    provider: "Anthropic",
-    image: true,
-    audio: false,
-    video: false,
-    pdf: true,
-  },
-  {
-    id: MEDIA_MODEL,
-    name: "Gemini 2.5 Flash",
-    provider: "Google",
-    image: true,
-    audio: true,
-    video: true,
-    pdf: true,
-  },
-  {
-    id: IMAGE_GEN_MODEL,
-    name: "Gemini Flash Image",
-    provider: "Google",
-    image: true,
-    audio: false,
-    video: false,
-    pdf: false,
-  },
-  {
-    id: VIDEO_GEN_MODEL,
-    name: "Seedance 2.0",
-    provider: "ByteDance",
-    image: false,
-    audio: false,
-    video: true,
-    pdf: false,
-  },
-  {
-    id: "meta-llama/llama-3.3-70b-instruct",
-    name: "Llama 3.3 70B",
-    provider: "Meta",
-    image: false,
-    audio: false,
-    video: false,
-    pdf: false,
-  },
-];
 
 const TEXT_ONLY = {
   image: false,
@@ -265,10 +183,13 @@ export const FREE_MODELS: CatalogModel[] = [
   },
 ];
 
-const FREE_MODEL_IDS = new Set(FREE_MODELS.map((model) => model.id));
-
-export const MODELS = FEATURED_MODELS;
-export const PINNED_MODELS = [...FEATURED_MODELS, ...FREE_MODELS];
+export const FEATURED_MODELS = FREE_MODELS;
+export const PINNED_MODELS = FREE_MODELS;
+export const MODELS = FREE_MODELS;
+export const DEFAULT_MODEL = FREE_MODELS[0].id;
+export const MEDIA_MODEL =
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
+export const VISION_MODEL = MEDIA_MODEL;
 
 type MessageLike = {
   role?: string;
@@ -280,11 +201,11 @@ export function isModelId(id: string) {
 }
 
 export function isFreeModel(id: string) {
-  return FREE_MODEL_IDS.has(id);
+  return id.endsWith(":free");
 }
 
 export function isModelAllowed(id: string) {
-  return isModelId(id);
+  return isModelId(id) && isFreeModel(id);
 }
 
 export function capabilitiesFromModalities(modalities: string[]) {
@@ -353,18 +274,15 @@ export function pickCapableModel(
   preferred?: string,
 ) {
   if (kinds.length === 0) {
-    return isModelId(preferred ?? "") ? preferred! : DEFAULT_MODEL;
+    return isModelAllowed(preferred ?? "") ? preferred! : DEFAULT_MODEL;
   }
-  if (preferred && kinds.every((kind) => modelSupportsMedia(preferred, kind, catalog))) {
+  if (preferred && isFreeModel(preferred) && kinds.every((kind) => modelSupportsMedia(preferred, kind, catalog))) {
     return preferred;
   }
-  if (kinds.every((kind) => modelSupportsMedia(MEDIA_MODEL, kind, catalog))) {
-    return MEDIA_MODEL;
-  }
   const match =
-    FEATURED_MODELS.find((model) => kinds.every((kind) => model[kind])) ??
-    catalog.find((model) => kinds.every((kind) => model[kind]));
-  return match?.id ?? MEDIA_MODEL;
+    FREE_MODELS.find((model) => kinds.every((kind) => model[kind])) ??
+    catalog.find((model) => kinds.every((kind) => model[kind] && isFreeModel(model.id)));
+  return match?.id ?? DEFAULT_MODEL;
 }
 
 export function resolveModelForMessages(
@@ -372,7 +290,7 @@ export function resolveModelForMessages(
   messages: MessageLike[],
   catalog: CatalogModel[] = FEATURED_MODELS,
 ) {
-  const selected = isModelId(modelId) ? modelId : DEFAULT_MODEL;
+  const selected = isModelAllowed(modelId) ? modelId : DEFAULT_MODEL;
   const lastUser = [...messages].reverse().find((message) => message.role === "user");
   if (!lastUser) return selected;
   return pickCapableModel(collectMediaKinds([lastUser]), catalog, selected);
@@ -435,25 +353,6 @@ export function modelMediaLabel(
     .join(" · ");
 }
 
-export function getOpenRouterProviderOptions(modelId: string) {
-  if (isFreeModel(modelId)) {
-    return { allow_fallbacks: true, data_collection: "allow" as const };
-  }
-
-  const options: {
-    zdr: true;
-    data_collection: "deny";
-    order?: string[];
-    allow_fallbacks?: boolean;
-  } = {
-    zdr: true,
-    data_collection: "deny",
-  };
-
-  if (modelId === VENICE_MODEL) {
-    options.order = ["venice"];
-    options.allow_fallbacks = false;
-  }
-
-  return options;
+export function getOpenRouterProviderOptions(_modelId?: string) {
+  return { allow_fallbacks: true, data_collection: "allow" as const };
 }

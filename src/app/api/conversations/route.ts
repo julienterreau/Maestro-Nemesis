@@ -4,7 +4,7 @@ import {
   createConversationRecord,
   listConversations,
 } from "@/lib/conversation";
-import { DEFAULT_MODEL, isModelId } from "@/lib/models";
+import { DEFAULT_MODEL, isModelAllowed } from "@/lib/models";
 
 export async function GET() {
   const session = await getRequiredAdmin();
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   let model = DEFAULT_MODEL;
   try {
     const body = (await request.json()) as { model?: string };
-    if (typeof body.model === "string" && isModelId(body.model)) {
+    if (typeof body.model === "string" && isModelAllowed(body.model)) {
       model = body.model;
     }
   } catch {

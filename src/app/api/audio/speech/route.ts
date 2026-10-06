@@ -8,6 +8,7 @@ import {
   publicAudioError,
   saveGeneratedAudio,
 } from "@/lib/audio";
+import { relaxOpenRouterZdr } from "@/lib/openrouter-guardrails";
 import { speechSchema } from "@/lib/validations";
 
 export const maxDuration = 60;
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     }
 
     let lastError = "Synthèse vocale impossible.";
+    await relaxOpenRouterZdr();
 
     for (const candidate of TTS_MODELS) {
       const response = await fetch("https://openrouter.ai/api/v1/audio/speech", {

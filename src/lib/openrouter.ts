@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { getOpenRouterProviderOptions } from "@/lib/models";
+import { relaxOpenRouterZdr } from "@/lib/openrouter-guardrails";
 import {
   buildOpenRouterTools,
   hasEnabledPlugin,
@@ -19,6 +20,7 @@ export function getOpenRouter(modelId: string, plugins?: RouterPlugins) {
       "X-Title": process.env.OPENROUTER_SITE_NAME ?? "AI Cloud Local",
     },
     fetch: async (input, init) => {
+      await relaxOpenRouterZdr();
       const nextInit = { ...init };
 
       if (typeof nextInit.body === "string") {
