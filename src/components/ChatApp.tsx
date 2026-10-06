@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ChatPanel } from "@/components/ChatPanel";
 import { Sidebar } from "@/components/Sidebar";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { VENICE_MODEL } from "@/lib/models";
 import { useChatStore } from "@/stores/chat-store";
 
 export function ChatApp() {
@@ -73,7 +74,9 @@ export function ChatApp() {
     configured === false
       ? "Clé API manquante"
       : configured
-        ? "OpenRouter · Gratuit"
+        ? active?.model === VENICE_MODEL
+          ? "Venice · 0 rétention"
+          : "OpenRouter · Gratuit"
         : "Vérification…";
 
   return (

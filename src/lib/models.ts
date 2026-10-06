@@ -1,3 +1,6 @@
+export const VENICE_MODEL =
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition";
+
 export const IMAGE_GEN_MODEL = "google/gemini-3.1-flash-image";
 export const VIDEO_GEN_MODEL = "bytedance/seedance-2.0";
 
@@ -183,10 +186,20 @@ export const FREE_MODELS: CatalogModel[] = [
   },
 ];
 
-export const FEATURED_MODELS = FREE_MODELS;
-export const PINNED_MODELS = FREE_MODELS;
-export const MODELS = FREE_MODELS;
-export const DEFAULT_MODEL = FREE_MODELS[0].id;
+export const FEATURED_MODELS: CatalogModel[] = [
+  {
+    id: VENICE_MODEL,
+    name: "Uncensored (0 rétention)",
+    provider: "Venice",
+    image: false,
+    audio: false,
+    video: false,
+    pdf: false,
+  },
+];
+export const PINNED_MODELS = [...FEATURED_MODELS, ...FREE_MODELS];
+export const MODELS = PINNED_MODELS;
+export const DEFAULT_MODEL = VENICE_MODEL;
 export const MEDIA_MODEL =
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
 export const VISION_MODEL = MEDIA_MODEL;
@@ -205,7 +218,7 @@ export function isFreeModel(id: string) {
 }
 
 export function isModelAllowed(id: string) {
-  return isModelId(id) && isFreeModel(id);
+  return isModelId(id) && (isFreeModel(id) || id === VENICE_MODEL);
 }
 
 export function capabilitiesFromModalities(modalities: string[]) {
@@ -276,7 +289,7 @@ export function pickCapableModel(
   if (kinds.length === 0) {
     return isModelAllowed(preferred ?? "") ? preferred! : DEFAULT_MODEL;
   }
-  if (preferred && isFreeModel(preferred) && kinds.every((kind) => modelSupportsMedia(preferred, kind, catalog))) {
+  if (preferred && isModelAllowed(preferred) && kinds.every((kind) => modelSupportsMedia(preferred, kind, catalog))) {
     return preferred;
   }
   const match =
@@ -353,6 +366,14 @@ export function modelMediaLabel(
     .join(" · ");
 }
 
-export function getOpenRouterProviderOptions(_modelId?: string) {
+export function getOpenRouterProviderOptions(modelId?: string) {
+  if (modelId === VENICE_MODEL) {
+    return {
+      zdr: true as const,
+      data_collection: "deny" as const,
+      order: ["venice"],
+      allow_fallbacks: false,
+    };
+  }
   return { allow_fallbacks: true, data_collection: "allow" as const };
 }

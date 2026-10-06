@@ -49,6 +49,7 @@ export async function relaxOpenRouterZdr() {
   try {
     const list = await fetch("https://openrouter.ai/api/v1/guardrails", {
       headers: authHeaders(),
+      signal: AbortSignal.timeout(1500),
     });
     if (!list.ok) return;
     const payload = (await list.json()) as { data?: Guardrail[] };
@@ -70,6 +71,7 @@ export async function relaxOpenRouterZdr() {
           method: "PATCH",
           headers: authHeaders(),
           body: JSON.stringify(ZDR_OFF),
+          signal: AbortSignal.timeout(1500),
         }),
       ),
     );

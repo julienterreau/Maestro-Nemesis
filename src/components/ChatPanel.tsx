@@ -94,6 +94,9 @@ export function ChatPanel({
       api: "/api/chat",
       body: { model: conversation.model, plugins },
     }),
+    onError: (err) => {
+      toast.error(err.message || "Impossible d’obtenir une réponse.");
+    },
   });
   const synced = useRef("");
   const [ready, setReady] = useState(false);
